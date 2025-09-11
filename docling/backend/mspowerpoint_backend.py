@@ -33,7 +33,26 @@ _log = logging.getLogger(__name__)
 
 
 class MsPowerpointDocumentBackend(DeclarativeDocumentBackend, PaginatedDocumentBackend):
+    """A backend for parsing Microsoft PowerPoint (`.pptx`) files.
+
+    This backend converts a PowerPoint presentation into a `DoclingDocument`.
+    Each slide is treated as a separate page. It parses various shapes on each
+    slide, including text boxes, tables, and pictures.
+    """
+
     def __init__(self, in_doc: "InputDocument", path_or_stream: Union[BytesIO, Path]):
+        """Initializes the MsPowerpointDocumentBackend.
+
+        This loads the PowerPoint presentation from the given path or stream
+        using the `python-pptx` library.
+
+        Args:
+            in_doc: The `InputDocument` object representing the source file.
+            path_or_stream: The path or stream of the PowerPoint file.
+
+        Raises:
+            RuntimeError: If an error occurs while parsing the file.
+        """
         super().__init__(in_doc, path_or_stream)
         self.namespaces = {
             "a": "http://schemas.openxmlformats.org/drawingml/2006/main",
@@ -60,6 +79,7 @@ class MsPowerpointDocumentBackend(DeclarativeDocumentBackend, PaginatedDocumentB
         return
 
     def page_count(self) -> int:
+        """Returns the number of slides in the presentation."""
         if self.is_valid():
             assert self.pptx_obj is not None
             return len(self.pptx_obj.slides)
@@ -67,13 +87,16 @@ class MsPowerpointDocumentBackend(DeclarativeDocumentBackend, PaginatedDocumentB
             return 0
 
     def is_valid(self) -> bool:
+        """Checks if the presentation was loaded successfully."""
         return self.valid
 
     @classmethod
     def supports_pagination(cls) -> bool:
+        """PowerPoint files are treated as paginated, with each slide being a page."""
         return True  # True? if so, how to handle pages...
 
     def unload(self):
+        """Closes the underlying stream if it's a `BytesIO` object."""
         if isinstance(self.path_or_stream, BytesIO):
             self.path_or_stream.close()
 
@@ -81,9 +104,18 @@ class MsPowerpointDocumentBackend(DeclarativeDocumentBackend, PaginatedDocumentB
 
     @classmethod
     def supported_formats(cls) -> Set[InputFormat]:
+        """Returns the set of supported formats, which is just PPTX."""
         return {InputFormat.PPTX}
 
     def convert(self) -> DoclingDocument:
+        """Converts the PowerPoint presentation into a `DoclingDocument`.
+
+        This method orchestrates the conversion by iterating through each slide
+        and parsing its shapes.
+
+        Returns:
+            A `DoclingDocument` object representing the presentation.
+        """
         # Parses the PPTX into a structured document model.
         # origin = DocumentOrigin(filename=self.path_or_stream.name, mimetype=next(iter(FormatToMimeType.get(InputFormat.PPTX))), binary_hash=self.document_hash)
 

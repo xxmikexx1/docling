@@ -27,6 +27,20 @@ from docling.utils.profiling import TimeRecorder
 
 
 class TableStructureModel(BasePageModel):
+    """A model for recognizing the structure of tables in documents.
+
+    This model uses the TableFormer architecture to predict the row, column,
+    and cell structure of tables identified by the layout model.
+
+    Attributes:
+        options: A `TableStructureOptions` object for configuration.
+        do_cell_matching: A boolean indicating if cell matching should be performed.
+        mode: The `TableFormerMode` to use (e.g., "fast", "accurate").
+        enabled: A boolean indicating if the model is enabled.
+        tf_predictor: An instance of the underlying `TFPredictor` model.
+        scale: The scaling factor applied to images before processing.
+    """
+
     _model_repo_folder = "ds4sd--docling-models"
     _model_path = "model_artifacts/tableformer"
 
@@ -37,6 +51,15 @@ class TableStructureModel(BasePageModel):
         options: TableStructureOptions,
         accelerator_options: AcceleratorOptions,
     ):
+        """Initializes the TableStructureModel.
+
+        Args:
+            enabled: A boolean flag to enable or disable the model.
+            artifacts_path: An optional path to the directory containing the
+                model artifacts. If not provided, the model will be downloaded.
+            options: The configuration options for the table structure model.
+            accelerator_options: The hardware acceleration options.
+        """
         self.options = options
         self.do_cell_matching = self.options.do_cell_matching
         self.mode = self.options.mode
@@ -92,6 +115,16 @@ class TableStructureModel(BasePageModel):
     def download_models(
         local_dir: Optional[Path] = None, force: bool = False, progress: bool = False
     ) -> Path:
+        """Downloads the TableFormer models from Hugging Face.
+
+        Args:
+            local_dir: An optional local directory to save the models to.
+            force: If `True`, forces the re-download of the models.
+            progress: If `True`, displays a progress bar.
+
+        Returns:
+            The path to the local directory where the models are saved.
+        """
         return download_hf_model(
             repo_id="ds4sd/docling-models",
             revision="v2.3.0",
@@ -107,6 +140,17 @@ class TableStructureModel(BasePageModel):
         tbl_list: Iterable[Table],
         show: bool = False,
     ):
+        """Generates a debug image visualizing the table structure recognition.
+
+        This method draws the bounding boxes of the detected tables, the cells
+        within them, and the final recognized table cells.
+
+        Args:
+            conv_res: The `ConversionResult` for the current document.
+            page: The `Page` object that was processed.
+            tbl_list: An iterable of `Table` objects to visualize.
+            show: If `True`, displays the image instead of saving it to a file.
+        """
         assert page._backend is not None
         assert page.size is not None
 
@@ -170,6 +214,15 @@ class TableStructureModel(BasePageModel):
     def __call__(
         self, conv_res: ConversionResult, page_batch: Iterable[Page]
     ) -> Iterable[Page]:
+        """Processes a batch of pages, performing table structure recognition.
+
+        Args:
+            conv_res: The `ConversionResult` for the current document.
+            page_batch: An iterable of `Page` objects to be processed.
+
+        Yields:
+            The processed `Page` objects with table structure predictions attached.
+        """
         if not self.enabled:
             yield from page_batch
             return

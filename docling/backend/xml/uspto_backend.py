@@ -41,7 +41,14 @@ XML_DECLARATION: Final = '<?xml version="1.0" encoding="UTF-8"?>'
 
 @unique
 class PatentHeading(Enum):
-    """Text of docling headings for tagged sections in USPTO patent documents."""
+    """An enumeration for standardized headings of sections in USPTO patent documents.
+
+    This enum defines the standard text and hierarchy level for common sections
+    found in patent documents, such as the abstract and claims.
+
+    Attributes:
+        level: The heading level in the document hierarchy.
+    """
 
     ABSTRACT = "ABSTRACT", 2
     CLAIMS = "CLAIMS", 2
@@ -58,10 +65,29 @@ class PatentHeading(Enum):
 
 
 class PatentUsptoDocumentBackend(DeclarativeDocumentBackend):
+    """A backend for parsing patent documents from the US Patent and Trademark Office (USPTO).
+
+    This backend acts as a factory, detecting the specific format of a USPTO
+    patent file (which has varied over the years) and delegating the parsing
+    to the appropriate specialized parser class.
+    """
+
     @override
     def __init__(
         self, in_doc: InputDocument, path_or_stream: Union[BytesIO, Path]
     ) -> None:
+        """Initializes the PatentUsptoDocumentBackend.
+
+        This reads the beginning of the file to determine the correct parser
+        to use based on the DOCTYPE declaration or other format markers.
+
+        Args:
+            in_doc: The `InputDocument` object representing the source file.
+            path_or_stream: The path or stream of the patent document.
+
+        Raises:
+            RuntimeError: If an error occurs while initializing the backend.
+        """
         super().__init__(in_doc, path_or_stream)
 
         self.patent_content: str = ""
@@ -104,24 +130,40 @@ class PatentUsptoDocumentBackend(DeclarativeDocumentBackend):
 
     @override
     def is_valid(self) -> bool:
+        """Checks if the backend was initialized successfully with a valid parser."""
         return bool(self.patent_content) and bool(self.parser)
 
     @classmethod
     @override
     def supports_pagination(cls) -> bool:
+        """USPTO patents are not treated as paginated in this backend."""
         return False
 
     @override
     def unload(self) -> None:
+        """No resources to unload for this backend."""
         return
 
     @classmethod
     @override
     def supported_formats(cls) -> set[InputFormat]:
+        """Returns the set of supported formats, which is just XML_USPTO."""
         return {InputFormat.XML_USPTO}
 
     @override
     def convert(self) -> DoclingDocument:
+        """Converts the patent document into a `DoclingDocument`.
+
+        This method delegates the parsing to the specialized parser that was
+        selected during initialization.
+
+        Returns:
+            A `DoclingDocument` object representing the patent.
+
+        Raises:
+            RuntimeError: If the conversion fails or the backend was not
+                properly initialized.
+        """
         if self.parser is not None:
             doc = self.parser.parse(self.patent_content)
             if doc is None:
@@ -150,26 +192,30 @@ class PatentUsptoDocumentBackend(DeclarativeDocumentBackend):
 
 
 class PatentUspto(ABC):
-    """Parser of patent documents from the US Patent Office."""
+    """An abstract base class for specific USPTO patent format parsers.
+
+    This class defines the common interface for all specialized parsers that
+    handle the different XML and text-based formats used by the USPTO over time.
+    """
 
     @abstractmethod
     def parse(self, patent_content: str) -> Optional[DoclingDocument]:
-        """Parse a USPTO patent.
+        """Parses the content of a single USPTO patent.
 
-        Parameters:
-            patent_content: The content of a single patent in a USPTO file.
+        Args:
+            patent_content: A string containing the full content of the patent.
 
         Returns:
-            The patent parsed as a docling document.
+            A `DoclingDocument` object representing the parsed patent, or `None`
+            if parsing fails.
         """
 
 
 class PatentUsptoIce(PatentUspto):
-    """Parser of patent documents from the US Patent Office (ICE).
+    """A parser for USPTO patent documents in the ICE (Information for Continued
+    Examination) format (XML v4.x).
 
-    The compatible formats are:
-    - Patent Grant Full Text Data/XML Version 4.x ICE (from January 2005)
-    - Patent Application Full Text Data/XML Version 4.x ICE (from January 2005)
+    This parser handles patent grants and applications published since January 2005.
     """
 
     def __init__(self) -> None:
@@ -501,10 +547,9 @@ class PatentUsptoIce(PatentUspto):
 
 
 class PatentUsptoGrantV2(PatentUspto):
-    """Parser of patent documents from the US Patent Office (grants v2.5).
+    """A parser for USPTO patent grant documents in the XML v2.5 format.
 
-    The compatible format is:
-    - Patent Grant Full Text Data/XML Version 2.5 (from January 2002 till December 2004)
+    This parser handles patent grants published from January 2002 to December 2004.
     """
 
     @override
@@ -846,10 +891,9 @@ class PatentUsptoGrantV2(PatentUspto):
 
 
 class PatentUsptoGrantAps(PatentUspto):
-    """Parser of patents documents from the US Patent Office (grants APS).
+    """A parser for USPTO patent grant documents in the text-based APS format.
 
-    The compatible format is:
-    - Patent Grant Full Text Data/APS (from January 1976 till December 2001)
+    This parser handles patent grants published from January 1976 to December 2001.
     """
 
     @unique
@@ -1061,11 +1105,10 @@ class PatentUsptoGrantAps(PatentUspto):
 
 
 class PatentUsptoAppV1(PatentUspto):
-    """Parser of patent documents from the US Patent Office (applications v1.x)
+    """A parser for USPTO patent application documents in the XML v1.x format.
 
-    The compatible format is:
-    - Patent Application Full Text Data/XML Version 1.x (from March 2001 till December
-      2004)
+    This parser handles patent applications published from March 2001 to
+    December 2004.
     """
 
     @override
@@ -1398,7 +1441,10 @@ class PatentUsptoAppV1(PatentUspto):
 
 
 class XmlTable:
-    """Provide a table parser for xml tables in USPTO patent documents.
+    """A parser for tables in the OASIS Open XML Exchange Table Model format.
+
+    This class is specifically designed to parse the `<table>` elements found
+    in USPTO patent documents, which follow the OASIS table model.
 
     The OASIS Open XML Exchange Table Model can be downloaded from:
     http://oasis-open.org/specs/soextblx.dtd
@@ -1679,10 +1725,11 @@ class XmlTable:
         return dl_table
 
     def parse(self) -> Optional[TableData]:
-        """Parse the first table from an xml content.
+        """Parses the first `<table>` element from the XML content.
 
         Returns:
-            A docling table data.
+            A `TableData` object representing the parsed table, or `None` if
+            no table is found.
         """
         section = self._soup.find("table")
         if isinstance(section, Tag):
@@ -1695,11 +1742,11 @@ class XmlTable:
 
 
 class HtmlEntity:
-    """Provide utility functions to get the HTML entities of styled characters.
+    """A utility class for converting characters to their HTML entity equivalents.
 
-    This class has been developed from:
-    https://unicode-table.com/en/html-entities/
-    https://www.w3.org/TR/WD-math-970515/table03.html
+    This class provides methods for converting text to superscript, subscript,
+    and mathematical italic, as well as for handling Greek letters from the
+    ISO 8879 entity set.
     """
 
     def __init__(self):
@@ -1859,47 +1906,204 @@ class HtmlEntity:
             "&ohgr;": "&omega;",
         }
 
+    def __init__(self):
+        """Initializes the HtmlEntity class by creating translation maps."""
+        self.superscript = str.maketrans(
+            {
+                "1": "&sup1;",
+                "2": "&sup2;",
+                "3": "&sup3;",
+                "4": "&#8308;",
+                "5": "&#8309;",
+                "6": "&#8310;",
+                "7": "&#8311;",
+                "8": "&#8312;",
+                "9": "&#8313;",
+                "0": "&#8304;",
+                "+": "&#8314;",
+                "-": "&#8315;",
+                "−": "&#8315;",  # noqa: RUF001
+                "=": "&#8316;",
+                "(": "&#8317;",
+                ")": "&#8318;",
+                "a": "&#170;",
+                "o": "&#186;",
+                "i": "&#8305;",
+                "n": "&#8319;",
+            }
+        )
+        self.subscript = str.maketrans(
+            {
+                "1": "&#8321;",
+                "2": "&#8322;",
+                "3": "&#8323;",
+                "4": "&#8324;",
+                "5": "&#8325;",
+                "6": "&#8326;",
+                "7": "&#8327;",
+                "8": "&#8328;",
+                "9": "&#8329;",
+                "0": "&#8320;",
+                "+": "&#8330;",
+                "-": "&#8331;",
+                "−": "&#8331;",  # noqa: RUF001
+                "=": "&#8332;",
+                "(": "&#8333;",
+                ")": "&#8334;",
+                "a": "&#8336;",
+                "e": "&#8337;",
+                "o": "&#8338;",
+                "x": "&#8339;",
+            }
+        )
+        self.mathematical_italic = str.maketrans(
+            {
+                "A": "&#119860;",
+                "B": "&#119861;",
+                "C": "&#119862;",
+                "D": "&#119863;",
+                "E": "&#119864;",
+                "F": "&#119865;",
+                "G": "&#119866;",
+                "H": "&#119867;",
+                "I": "&#119868;",
+                "J": "&#119869;",
+                "K": "&#119870;",
+                "L": "&#119871;",
+                "M": "&#119872;",
+                "N": "&#119873;",
+                "O": "&#119874;",
+                "P": "&#119875;",
+                "Q": "&#119876;",
+                "R": "&#119877;",
+                "S": "&#119878;",
+                "T": "&#119879;",
+                "U": "&#119880;",
+                "V": "&#119881;",
+                "W": "&#119882;",
+                "Y": "&#119884;",
+                "Z": "&#119885;",
+                "a": "&#119886;",
+                "b": "&#119887;",
+                "c": "&#119888;",
+                "d": "&#119889;",
+                "e": "&#119890;",
+                "f": "&#119891;",
+                "g": "&#119892;",
+                "h": "&#119893;",
+                "i": "&#119894;",
+                "j": "&#119895;",
+                "k": "&#119896;",
+                "l": "&#119897;",
+                "m": "&#119898;",
+                "n": "&#119899;",
+                "o": "&#119900;",
+                "p": "&#119901;",
+                "q": "&#119902;",
+                "r": "&#119903;",
+                "s": "&#119904;",
+                "t": "&#119905;",
+                "u": "&#119906;",
+                "v": "&#119907;",
+                "w": "&#119908;",
+                "x": "&#119909;",
+                "y": "&#119910;",
+                "z": "&#119911;",
+            }
+        )
+
+        self.lookup_iso8879 = {
+            "&Agr;": "&Alpha;",
+            "&Bgr;": "&Beta;",
+            "&Ggr;": "&Gamma;",
+            "&Dgr;": "&Delta;",
+            "&Egr;": "&Epsilon;",
+            "&Zgr;": "&Zeta;",
+            "&EEgr;": "&Eta;",
+            "&THgr;": "&Theta;",
+            "&Igr;": "&Iota;",
+            "&Kgr;": "&Kappa;",
+            "&Lgr;": "&Lambda;",
+            "&Mgr;": "&Mu;",
+            "&Ngr;": "&Nu;",
+            "&Xgr;": "&Xi;",
+            "&Ogr;": "&Omicron;",
+            "&Pgr;": "&Pi;",
+            "&Rgr;": "&Rho;",
+            "&Sgr;": "&Sigma;",
+            "&Tgr;": "&Tau;",
+            "&Ugr;": "&Upsilon;",
+            "&PHgr;": "&Phi;",
+            "&KHgr;": "&Chi;",
+            "&PSgr;": "&Psi;",
+            "&OHgr;": "&Omega;",
+            "&agr;": "&alpha;",
+            "&bgr;": "&beta;",
+            "&ggr;": "&gamma;",
+            "&dgr;": "&delta;",
+            "&egr;": "&epsilon;",
+            "&zgr;": "&zeta;",
+            "&eegr;": "&eta;",
+            "&thgr;": "&theta;",
+            "&igr;": "&iota;",
+            "&kgr;": "&kappa;",
+            "&lgr;": "&lambda;",
+            "&mgr;": "&mu;",
+            "&ngr;": "&nu;",
+            "&xgr;": "&xi;",
+            "&ogr;": "&omicron;",
+            "&pgr;": "&pi;",
+            "&rgr;": "&rho;",
+            "&sgr;": "&sigmaf;",
+            "&tgr;": "&tau;",
+            "&ugr;": "&upsilon;",
+            "&phgr;": "&phi;",
+            "&khgr;": "&chi;",
+            "&psgr;": "&psi;",
+            "&ohgr;": "&omega;",
+        }
+
     def get_superscript(self, text: str) -> str:
-        """Get a text in superscript as HTML entities.
+        """Converts a string to its superscript HTML entity representation.
 
         Args:
-            text: The text to transform.
+            text: The text to convert.
 
         Returns:
-            The text in superscript as HTML entities.
+            The superscripted text as a string of HTML entities.
         """
         return text.translate(self.superscript)
 
     def get_subscript(self, text: str) -> str:
-        """Get a text in subscript as HTML entities.
+        """Converts a string to its subscript HTML entity representation.
 
         Args:
-            The text to transform.
+            text: The text to convert.
 
         Returns:
-            The text in subscript as HTML entities.
+            The subscripted text as a string of HTML entities.
         """
         return text.translate(self.subscript)
 
     def get_math_italic(self, text: str) -> str:
-        """Get a text in italic as HTML entities.
+        """Converts a string to its mathematical italic HTML entity representation.
 
         Args:
-            The text to transform.
+            text: The text to convert.
 
         Returns:
-            The text in italics as HTML entities.
+            The italicized text as a string of HTML entities.
         """
         return text.translate(self.mathematical_italic)
 
     def get_greek_from_iso8879(self, text: str) -> str:
-        """Get an HTML entity of a greek letter in ISO 8879.
+        """Converts an ISO 8879 Greek letter entity to a standard HTML entity.
 
         Args:
-            The text to transform, as an ISO 8879 entity.
+            text: The ISO 8879 entity (e.g., "&Agr;").
 
         Returns:
-            The HTML entity representing a greek letter. If the input text is not
-              supported, the original text is returned.
+            The corresponding HTML entity (e.g., "&Alpha;"), or the original
+            text if no mapping is found.
         """
         return self.lookup_iso8879.get(text, text)

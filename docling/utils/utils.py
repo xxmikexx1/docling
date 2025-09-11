@@ -9,7 +9,18 @@ from tqdm import tqdm
 
 
 def chunkify(iterator, chunk_size):
-    """Yield successive chunks of chunk_size from the iterable."""
+    """Yields successive chunks of a specified size from an iterable.
+
+    This function takes an iterable and divides it into chunks of a given size,
+    which is useful for batch processing.
+
+    Args:
+        iterator: The iterable to be chunked.
+        chunk_size: The desired size of each chunk.
+
+    Yields:
+        A list representing a chunk of the original iterable.
+    """
     if isinstance(iterator, List):
         iterator = iter(iterator)
     for first in iterator:  # Take the first element from the iterator
@@ -17,7 +28,19 @@ def chunkify(iterator, chunk_size):
 
 
 def create_file_hash(path_or_stream: Union[BytesIO, Path]) -> str:
-    """Create a stable page_hash of the path_or_stream of a file"""
+    """Creates a SHA-256 hash of a file's content.
+
+    This function generates a stable hash for a file, whether it is provided as
+    a local file path or an in-memory stream. It reads the file in chunks to
+    handle large files efficiently.
+
+    Args:
+        path_or_stream: The source of the file, either a `Path` object or a
+            `BytesIO` stream.
+
+    Returns:
+        A string containing the hexadecimal representation of the SHA-256 hash.
+    """
 
     block_size = 65536
     hasher = hashlib.sha256(usedforsecurity=False)
@@ -38,6 +61,14 @@ def create_file_hash(path_or_stream: Union[BytesIO, Path]) -> str:
 
 
 def create_hash(string: str):
+    """Creates a SHA-256 hash of a string.
+
+    Args:
+        string: The input string to be hashed.
+
+    Returns:
+        A string containing the hexadecimal representation of the SHA-256 hash.
+    """
     hasher = hashlib.sha256(usedforsecurity=False)
     hasher.update(string.encode("utf-8"))
 
@@ -45,6 +76,18 @@ def create_hash(string: str):
 
 
 def download_url_with_progress(url: str, progress: bool = False) -> BytesIO:
+    """Downloads a file from a URL with an optional progress bar.
+
+    This function streams the content from a given URL into an in-memory
+    `BytesIO` buffer. It can display a progress bar using `tqdm` if requested.
+
+    Args:
+        url: The URL of the file to download.
+        progress: If `True`, displays a progress bar during the download.
+
+    Returns:
+        A `BytesIO` object containing the downloaded file content.
+    """
     buf = BytesIO()
     with requests.get(url, stream=True, allow_redirects=True) as response:
         total_size = int(response.headers.get("content-length", 0))

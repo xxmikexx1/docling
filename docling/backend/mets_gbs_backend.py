@@ -52,15 +52,41 @@ def _get_pdf_page_geometry(
 
 
 class MetsGbsPageBackend(PdfPageBackend):
+    """A page-level backend for handling a single page from a METS GBS document.
+
+    This class provides access to the content of a single page, including its
+    image and segmented text data.
+
+    Attributes:
+        valid: A boolean indicating if the page was loaded successfully.
+    """
+
     def __init__(self, parsed_page: SegmentedPdfPage, page_im: PILImage):
+        """Initializes the MetsGbsPageBackend.
+
+        Args:
+            parsed_page: The `SegmentedPdfPage` object containing the parsed
+                content of the page.
+            page_im: The `PIL.Image.Image` object for the page.
+        """
         self._im = page_im
         self._dpage = parsed_page
         self.valid = parsed_page is not None
 
     def is_valid(self) -> bool:
+        """Checks if the page was loaded successfully."""
         return self.valid
 
     def get_text_in_rect(self, bbox: BoundingBox) -> str:
+        """Extracts text from a given rectangular area of the page.
+
+        Args:
+            bbox: The `BoundingBox` defining the area to extract text from.
+
+        Returns:
+            A string containing the concatenated text of all cells that
+            significantly overlap with the bounding box.
+        """
         # Find intersecting cells on the page
         text_piece = ""
         page_size = self.get_size()
@@ -86,12 +112,22 @@ class MetsGbsPageBackend(PdfPageBackend):
         return text_piece
 
     def get_segmented_page(self) -> Optional[SegmentedPdfPage]:
+        """Returns the `SegmentedPdfPage` object for this page."""
         return self._dpage
 
     def get_text_cells(self) -> Iterable[TextCell]:
+        """Returns an iterable of all text cells on the page."""
         return self._dpage.textline_cells
 
     def get_bitmap_rects(self, scale: float = 1) -> Iterable[BoundingBox]:
+        """Yields the bounding boxes of bitmap images on the page.
+
+        Args:
+            scale: A scaling factor to apply to the bounding box coordinates.
+
+        Yields:
+            A `BoundingBox` for each bitmap image on the page.
+        """
         AREA_THRESHOLD = 0  # 32 * 32
 
         images = self._dpage.bitmap_resources
@@ -109,6 +145,15 @@ class MetsGbsPageBackend(PdfPageBackend):
     def get_page_image(
         self, scale: float = 1, cropbox: Optional[BoundingBox] = None
     ) -> Image.Image:
+        """Returns an image of the page.
+
+        Args:
+            scale: The scaling factor for the rendered image.
+            cropbox: An optional `BoundingBox` to crop the image to.
+
+        Returns:
+            A `PIL.Image.Image` object of the page.
+        """
         page_size = self.get_size()
         assert (
             page_size.width == self._im.size[0] and page_size.height == self._im.size[1]
@@ -129,11 +174,13 @@ class MetsGbsPageBackend(PdfPageBackend):
         return image
 
     def get_size(self) -> Size:
+        """Returns the size of the page in points."""
         return Size(
             width=self._dpage.dimension.width, height=self._dpage.dimension.height
         )
 
     def unload(self) -> None:
+        """Releases the page image and data to free up memory."""
         if hasattr(self, "_im"):
             delattr(self, "_im")
         if hasattr(self, "_dpage"):
@@ -141,6 +188,8 @@ class MetsGbsPageBackend(PdfPageBackend):
 
 
 class _UseType(str, Enum):
+    """An enumeration for the `USE` attribute of a `<fileGrp>` element in METS."""
+
     IMAGE = "image"
     OCR = "OCR"
     COORD_OCR = "coordOCR"
@@ -148,6 +197,8 @@ class _UseType(str, Enum):
 
 @dataclass
 class _FileInfo:
+    """A dataclass to store information about a file in the METS archive."""
+
     file_id: str
     mimetype: str
     path: str
@@ -156,14 +207,24 @@ class _FileInfo:
 
 @dataclass
 class _PageFiles:
+    """A dataclass to group the different files associated with a single page."""
+
     image: Optional[_FileInfo] = None
     ocr: Optional[_FileInfo] = None
     coordOCR: Optional[_FileInfo] = None
 
 
 def _extract_rect(title_str: str) -> Optional[BoundingRectangle]:
-    """
-    Extracts bbox from title string like 'bbox 279 177 306 214;x_wconf 97'
+    """Extracts a bounding box from a title string.
+
+    The title string is expected to contain a "bbox" attribute, e.g.,
+    'bbox 279 177 306 214;x_wconf 97'.
+
+    Args:
+        title_str: The title string to parse.
+
+    Returns:
+        A `BoundingRectangle` object, or `None` if parsing fails.
     """
     parts = title_str.split(";")
     for part in parts:
@@ -183,7 +244,14 @@ def _extract_rect(title_str: str) -> Optional[BoundingRectangle]:
 
 
 def _extract_confidence(title_str) -> float:
-    """Extracts x_wconf (OCR confidence) value from title string."""
+    """Extracts the OCR confidence (`x_wconf`) from a title string.
+
+    Args:
+        title_str: The title string to parse.
+
+    Returns:
+        The OCR confidence as a float between 0 and 1, or 1.0 if not found.
+    """
     for part in title_str.split(";"):
         part = part.strip()
         if part.startswith("x_wconf"):
@@ -195,7 +263,30 @@ def _extract_confidence(title_str) -> float:
 
 
 class MetsGbsDocumentBackend(PdfDocumentBackend):
+    """A document-level backend for handling METS GBS documents.
+
+    This class orchestrates the processing of a METS GBS `tar.gz` archive. It
+    parses the main METS XML file to build a map of pages and their associated
+    files (images, OCR data), and provides a method to load individual pages.
+
+    Attributes:
+        root_mets: The root element of the parsed METS XML file.
+        page_map: A dictionary mapping page numbers to `_PageFiles` objects.
+    """
+
     def __init__(self, in_doc: "InputDocument", path_or_stream: Union[BytesIO, Path]):
+        """Initializes the MetsGbsDocumentBackend.
+
+        This opens the `tar.gz` archive, finds and parses the main METS XML
+        file, and builds a map of all the files in the archive.
+
+        Args:
+            in_doc: The `InputDocument` object representing the source archive.
+            path_or_stream: The path or stream of the `tar.gz` archive.
+
+        Raises:
+            RuntimeError: If a valid METS XML file cannot be found in the archive.
+        """
         super().__init__(in_doc, path_or_stream)
 
         self._tar: tarfile.TarFile = (
@@ -376,24 +467,37 @@ class MetsGbsDocumentBackend(PdfDocumentBackend):
         return page, im
 
     def page_count(self) -> int:
+        """Returns the total number of pages in the document."""
         return len(self.page_map)
 
     def load_page(self, page_no: int) -> MetsGbsPageBackend:
+        """Loads a single page and returns a `MetsGbsPageBackend` for it.
+
+        Args:
+            page_no: The page number to load (0-indexed).
+
+        Returns:
+            A `MetsGbsPageBackend` instance for the specified page.
+        """
         # TODO: is this thread-safe?
         page, im = self._parse_page(page_no)
         return MetsGbsPageBackend(parsed_page=page, page_im=im)
 
     def is_valid(self) -> bool:
+        """Checks if the document is valid."""
         return self.root_mets is not None and self.page_count() > 0
 
     @classmethod
     def supported_formats(cls) -> Set[InputFormat]:
+        """Returns the set of supported formats, which is just METS_GBS."""
         return {InputFormat.METS_GBS}
 
     @classmethod
     def supports_pagination(cls) -> bool:
+        """METS GBS is a paginated format."""
         return True
 
     def unload(self) -> None:
+        """Closes the underlying `tar.gz` archive."""
         super().unload()
         self._tar.close()

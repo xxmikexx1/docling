@@ -32,16 +32,22 @@ DEFAULT_TEXT_ETAL: Final = "et al."
 
 
 class Abstract(TypedDict):
+    """A TypedDict for representing the abstract of a document."""
+
     label: str
     content: str
 
 
 class Author(TypedDict):
+    """A TypedDict for representing an author."""
+
     name: str
     affiliation_names: list[str]
 
 
 class Citation(TypedDict):
+    """A TypedDict for representing a citation."""
+
     author_names: str
     title: str
     source: str
@@ -66,28 +72,30 @@ class XMLComponents(TypedDict):
 
 
 class JatsDocumentBackend(DeclarativeDocumentBackend):
-    """Backend to parse articles in XML format tagged according to JATS definition.
+    """A backend for parsing JATS (Journal Article Tag Suite) XML files.
 
-    The Journal Article Tag Suite (JATS) is an definition standard for the
-    representation of journal articles in XML format. Several publishers and journal
-    archives provide content in JATS format, including PubMed Central® (PMC), bioRxiv,
-    medRxiv, or Springer Nature.
+    This backend converts a JATS XML document into a `DoclingDocument`. It parses
+    metadata such as title, authors, and abstract, as well as the main body
+    content, including sections, paragraphs, lists, tables, and figures.
 
-    Refer to https://jats.nlm.nih.gov for more details on JATS.
-
-    The code from this document backend has been developed by modifying parts of the
-    PubMed Parser library (version 0.5.0, released on 12.08.2024):
-    Achakulvisut et al., (2020).
-    Pubmed Parser: A Python Parser for PubMed Open-Access XML Subset and MEDLINE XML
-      Dataset XML Dataset.
-    Journal of Open Source Software, 5(46), 1979,
-    https://doi.org/10.21105/joss.01979
+    The implementation is based on the `pubmed-parser` library.
     """
 
     @override
     def __init__(
         self, in_doc: "InputDocument", path_or_stream: Union[BytesIO, Path]
     ) -> None:
+        """Initializes the JatsDocumentBackend.
+
+        This loads and validates the JATS XML file from the given path or stream.
+
+        Args:
+            in_doc: The `InputDocument` object representing the source file.
+            path_or_stream: The path or stream of the JATS XML file.
+
+        Raises:
+            RuntimeError: If an error occurs while parsing the file.
+        """
         super().__init__(in_doc, path_or_stream)
         self.path_or_stream = path_or_stream
 
@@ -119,15 +127,18 @@ class JatsDocumentBackend(DeclarativeDocumentBackend):
 
     @override
     def is_valid(self) -> bool:
+        """Checks if the document is a valid JATS XML file."""
         return self.valid
 
     @classmethod
     @override
     def supports_pagination(cls) -> bool:
+        """JATS is not a paginated format."""
         return False
 
     @override
     def unload(self):
+        """Closes the underlying stream if it's a `BytesIO` object."""
         if isinstance(self.path_or_stream, BytesIO):
             self.path_or_stream.close()
         self.path_or_stream = None
@@ -135,10 +146,19 @@ class JatsDocumentBackend(DeclarativeDocumentBackend):
     @classmethod
     @override
     def supported_formats(cls) -> set[InputFormat]:
+        """Returns the set of supported formats, which is just XML_JATS."""
         return {InputFormat.XML_JATS}
 
     @override
     def convert(self) -> DoclingDocument:
+        """Converts the JATS XML document into a `DoclingDocument`.
+
+        This method orchestrates the conversion by parsing the metadata and then
+        walking the body and back matter of the XML tree.
+
+        Returns:
+            A `DoclingDocument` object representing the JATS article.
+        """
         try:
             # Create empty document
             origin = DocumentOrigin(

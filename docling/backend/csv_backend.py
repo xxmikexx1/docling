@@ -15,9 +15,32 @@ _log = logging.getLogger(__name__)
 
 
 class CsvDocumentBackend(DeclarativeDocumentBackend):
+    """A backend for parsing CSV (Comma-Separated Values) files.
+
+    This class implements the `DeclarativeDocumentBackend` interface to provide
+    a parser for CSV data. It automatically detects the CSV dialect (e.g.,
+    delimiter) and converts the entire file into a single table within a
+    `DoclingDocument`.
+
+    Attributes:
+        content: A `StringIO` object containing the content of the CSV file.
+    """
+
     content: StringIO
 
     def __init__(self, in_doc: "InputDocument", path_or_stream: Union[BytesIO, Path]):
+        """Initializes the CsvDocumentBackend.
+
+        This reads the content of the CSV file from the given path or stream
+        and prepares it for parsing.
+
+        Args:
+            in_doc: The `InputDocument` object representing the source document.
+            path_or_stream: The path or stream of the CSV content.
+
+        Raises:
+            RuntimeError: If the backend cannot be initialized.
+        """
         super().__init__(in_doc, path_or_stream)
 
         # Load content
@@ -34,24 +57,33 @@ class CsvDocumentBackend(DeclarativeDocumentBackend):
         return
 
     def is_valid(self) -> bool:
+        """Checks if the backend was initialized successfully."""
         return self.valid
 
     @classmethod
     def supports_pagination(cls) -> bool:
+        """CSV is not a paginated format."""
         return False
 
     def unload(self):
+        """Closes the underlying stream if it's a `BytesIO` object."""
         if isinstance(self.path_or_stream, BytesIO):
             self.path_or_stream.close()
         self.path_or_stream = None
 
     @classmethod
     def supported_formats(cls) -> Set[InputFormat]:
+        """Returns the set of supported formats, which is just CSV."""
         return {InputFormat.CSV}
 
     def convert(self) -> DoclingDocument:
-        """
-        Parses the CSV data into a structured document model.
+        """Parses the CSV data into a `DoclingDocument`.
+
+        This method detects the CSV dialect, reads the data, and converts it
+        into a single table within a new `DoclingDocument`.
+
+        Returns:
+            A `DoclingDocument` object containing the CSV data as a table.
         """
 
         # Detect CSV dialect

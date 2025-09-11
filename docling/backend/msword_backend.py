@@ -38,10 +38,30 @@ _log = logging.getLogger(__name__)
 
 
 class MsWordDocumentBackend(DeclarativeDocumentBackend):
+    """A backend for parsing Microsoft Word (`.docx`) files.
+
+    This backend uses the `python-docx` library to parse the content of a Word
+    document and converts it into a `DoclingDocument`. It handles various
+    elements, including paragraphs, headings, lists, tables, images, and
+    equations (OMML).
+    """
+
     @override
     def __init__(
         self, in_doc: "InputDocument", path_or_stream: Union[BytesIO, Path]
     ) -> None:
+        """Initializes the MsWordDocumentBackend.
+
+        This loads the Word document from the given path or stream using
+        `python-docx` and sets up the initial state for parsing.
+
+        Args:
+            in_doc: The `InputDocument` object representing the source file.
+            path_or_stream: The path or stream of the Word document.
+
+        Raises:
+            RuntimeError: If an error occurs while parsing the file.
+        """
         super().__init__(in_doc, path_or_stream)
         self.XML_KEY = (
             "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val"
@@ -92,15 +112,18 @@ class MsWordDocumentBackend(DeclarativeDocumentBackend):
 
     @override
     def is_valid(self) -> bool:
+        """Checks if the Word document was loaded successfully."""
         return self.valid
 
     @classmethod
     @override
     def supports_pagination(cls) -> bool:
+        """Word documents are not treated as paginated in this backend."""
         return False
 
     @override
     def unload(self):
+        """Closes the underlying stream if it's a `BytesIO` object."""
         if isinstance(self.path_or_stream, BytesIO):
             self.path_or_stream.close()
 
@@ -109,14 +132,21 @@ class MsWordDocumentBackend(DeclarativeDocumentBackend):
     @classmethod
     @override
     def supported_formats(cls) -> set[InputFormat]:
+        """Returns the set of supported formats, which is just DOCX."""
         return {InputFormat.DOCX}
 
     @override
     def convert(self) -> DoclingDocument:
-        """Parses the DOCX into a structured document model.
+        """Converts the Word document into a `DoclingDocument`.
+
+        This method orchestrates the conversion by walking through the body of
+        the document and processing its elements.
 
         Returns:
-            The parsed document.
+            A `DoclingDocument` object representing the Word document.
+
+        Raises:
+            RuntimeError: If the backend was not initialized successfully.
         """
 
         origin = DocumentOrigin(

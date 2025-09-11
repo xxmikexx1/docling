@@ -13,7 +13,26 @@ _log = logging.getLogger(__name__)
 
 
 class BaseExtractionPipeline(ABC):
+    """Abstract base class for all extraction pipelines.
+
+    This class provides the basic structure for pipelines that extract structured
+    data from documents. It handles initialization, artifact path management,
+    and the main execution flow.
+
+    Attributes:
+        pipeline_options: The configuration options for the pipeline.
+        artifacts_path: The path to the directory containing model artifacts.
+    """
+
     def __init__(self, pipeline_options: PipelineOptions):
+        """Initializes the BaseExtractionPipeline.
+
+        Args:
+            pipeline_options: The configuration options for the pipeline.
+
+        Raises:
+            RuntimeError: If the specified artifacts_path is not a valid directory.
+        """
         self.pipeline_options = pipeline_options
 
         self.artifacts_path: Optional[Path] = None
@@ -34,6 +53,19 @@ class BaseExtractionPipeline(ABC):
         raises_on_error: bool,
         template: Optional[ExtractionTemplateType] = None,
     ) -> ExtractionResult:
+        """Executes the extraction pipeline.
+
+        This method orchestrates the data extraction process, including error handling.
+
+        Args:
+            in_doc: The input document to process.
+            raises_on_error: If True, exceptions will be raised. Otherwise, they
+                will be caught and recorded in the result.
+            template: The extraction template to use.
+
+        Returns:
+            An ExtractionResult object containing the extracted data and status.
+        """
         ext_res = ExtractionResult(input=in_doc)
 
         try:
@@ -58,15 +90,41 @@ class BaseExtractionPipeline(ABC):
         ext_res: ExtractionResult,
         template: Optional[ExtractionTemplateType] = None,
     ) -> ExtractionResult:
-        """Subclass must populate ext_res.pages/errors and return the result."""
+        """Abstract method for the main data extraction logic.
+
+        Subclasses must implement this method to populate the `ext_res` object
+        with extracted data (e.g., pages, errors).
+
+        Args:
+            ext_res: The ExtractionResult object to populate.
+            template: The extraction template to use.
+
+        Returns:
+            The populated ExtractionResult object.
+        """
         raise NotImplementedError
 
     @abstractmethod
     def _determine_status(self, ext_res: ExtractionResult) -> ConversionStatus:
-        """Subclass must decide SUCCESS/PARTIAL_SUCCESS/FAILURE based on ext_res."""
+        """Determines the final status of the extraction.
+
+        Subclasses must implement this method to decide the final status
+        (e.g., SUCCESS, FAILURE) based on the content of `ext_res`.
+
+        Args:
+            ext_res: The ExtractionResult object.
+
+        Returns:
+            The final ConversionStatus.
+        """
         raise NotImplementedError
 
     @classmethod
     @abstractmethod
     def get_default_options(cls) -> PipelineOptions:
+        """Gets the default pipeline options for this extraction pipeline.
+
+        Returns:
+            A PipelineOptions object with default values.
+        """
         pass

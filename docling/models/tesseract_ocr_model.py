@@ -27,6 +27,20 @@ _log = logging.getLogger(__name__)
 
 
 class TesseractOcrModel(BaseOcrModel):
+    """An OCR model that uses the `tesserocr` library.
+
+    This class implements the `BaseOcrModel` interface to provide OCR
+    functionality using the `tesserocr` wrapper for the Tesseract engine.
+
+    Attributes:
+        scale: The scaling factor applied to images before OCR.
+        reader: The main `tesserocr.PyTessBaseAPI` instance.
+        osd_reader: A `tesserocr.PyTessBaseAPI` instance for orientation and
+            script detection.
+        script_readers: A dictionary of `tesserocr.PyTessBaseAPI` instances
+            for different scripts, used when language is set to "auto".
+    """
+
     def __init__(
         self,
         enabled: bool,
@@ -34,6 +48,18 @@ class TesseractOcrModel(BaseOcrModel):
         options: TesseractOcrOptions,
         accelerator_options: AcceleratorOptions,
     ):
+        """Initializes the TesseractOcrModel.
+
+        Args:
+            enabled: A boolean flag to enable or disable the model.
+            artifacts_path: An optional path to a directory for saving artifacts.
+            options: The configuration options for the Tesseract model.
+            accelerator_options: The hardware acceleration options.
+
+        Raises:
+            ImportError: If the `tesserocr` library is not installed or configured
+                correctly.
+        """
         super().__init__(
             enabled=enabled,
             artifacts_path=artifacts_path,
@@ -108,6 +134,7 @@ class TesseractOcrModel(BaseOcrModel):
             self.reader_RIL = tesserocr.RIL
 
     def __del__(self):
+        """Finalizes the Tesseract API instances to release resources."""
         if self.reader is not None:
             # Finalize the tesseractAPI
             self.reader.End()
@@ -117,6 +144,15 @@ class TesseractOcrModel(BaseOcrModel):
     def __call__(
         self, conv_res: ConversionResult, page_batch: Iterable[Page]
     ) -> Iterable[Page]:
+        """Processes a batch of pages, performing OCR on designated regions.
+
+        Args:
+            conv_res: The `ConversionResult` for the current document.
+            page_batch: An iterable of `Page` objects to be processed.
+
+        Yields:
+            The processed `Page` objects with OCR results merged into the text cells.
+        """
         if not self.enabled:
             yield from page_batch
             return
@@ -251,4 +287,5 @@ class TesseractOcrModel(BaseOcrModel):
 
     @classmethod
     def get_options_type(cls) -> Type[OcrOptions]:
+        """Returns the options type for this model, which is `TesseractOcrOptions`."""
         return TesseractOcrOptions

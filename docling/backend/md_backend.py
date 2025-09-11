@@ -64,6 +64,15 @@ _CreationPayload = Annotated[
 
 
 class MarkdownDocumentBackend(DeclarativeDocumentBackend):
+    """A backend for parsing Markdown files.
+
+    This class implements the `DeclarativeDocumentBackend` interface to provide
+    a parser for documents written in Markdown. It uses the `marko` library to
+    parse the Markdown into an Abstract Syntax Tree (AST) and then recursively
+    walks the tree to build a `DoclingDocument`. It also handles embedded HTML
+    by delegating to the `HTMLDocumentBackend`.
+    """
+
     def _shorten_underscore_sequences(self, markdown_text: str, max_length: int = 10):
         # This regex will match any sequence of underscores
         pattern = r"_+"
@@ -88,6 +97,20 @@ class MarkdownDocumentBackend(DeclarativeDocumentBackend):
         return shortened_text
 
     def __init__(self, in_doc: "InputDocument", path_or_stream: Union[BytesIO, Path]):
+        """Initializes the MarkdownDocumentBackend.
+
+        This reads the content of the Markdown file from the given path or
+        stream and prepares it for parsing. It also performs a pre-processing
+        step to shorten long sequences of underscores, which can cause
+        performance issues with the `marko` parser.
+
+        Args:
+            in_doc: The `InputDocument` object representing the source Markdown.
+            path_or_stream: The path or stream of the Markdown content.
+
+        Raises:
+            RuntimeError: If the backend cannot be initialized.
+        """
         super().__init__(in_doc, path_or_stream)
 
         _log.debug("Starting MarkdownDocumentBackend...")
@@ -503,22 +526,36 @@ class MarkdownDocumentBackend(DeclarativeDocumentBackend):
                 )
 
     def is_valid(self) -> bool:
+        """Checks if the backend was initialized successfully."""
         return self.valid
 
     def unload(self):
+        """Closes the underlying stream if it's a `BytesIO` object."""
         if isinstance(self.path_or_stream, BytesIO):
             self.path_or_stream.close()
         self.path_or_stream = None
 
     @classmethod
     def supports_pagination(cls) -> bool:
+        """Markdown is not a paginated format."""
         return False
 
     @classmethod
     def supported_formats(cls) -> set[InputFormat]:
+        """Returns the set of supported formats, which is just MD."""
         return {InputFormat.MD}
 
     def convert(self) -> DoclingDocument:
+        """Converts the parsed Markdown into a `DoclingDocument`.
+
+        This method orchestrates the conversion by parsing the Markdown into an
+        AST and then walking the tree to build the `DoclingDocument`. If HTML
+        blocks are detected, it delegates the final conversion to the
+        `HTMLDocumentBackend`.
+
+        Returns:
+            A `DoclingDocument` object representing the Markdown content.
+        """
         _log.debug("converting Markdown...")
 
         origin = DocumentOrigin(

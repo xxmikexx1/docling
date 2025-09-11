@@ -9,6 +9,25 @@ CLIPPED_ORIENTATIONS = [0, 90, 180, 270]
 def rotate_bounding_box(
     bbox: BoundingBox, angle: int, im_size: Tuple[int, int]
 ) -> BoundingRectangle:
+    """Rotates a bounding box by a given angle around the center of an image.
+
+    This function takes an axis-aligned bounding box and rotates its coordinates
+    by a specified angle (90, 180, or 270 degrees) within the bounds of a given
+    image size. The result is a `BoundingRectangle` with the new coordinates
+    of the rotated box's corners.
+
+    Args:
+        bbox: The `BoundingBox` to rotate.
+        angle: The angle of rotation in degrees. Must be one of 0, 90, 180, 270.
+        im_size: A tuple `(width, height)` representing the size of the image
+            within which the rotation occurs.
+
+    Returns:
+        A `BoundingRectangle` representing the rotated bounding box.
+
+    Raises:
+        ValueError: If the angle is not one of the supported values.
+    """
     # The box is left top width height in TOPLEFT coordinates
     # Bounding rectangle start with r_0 at the bottom left whatever the
     # coordinate system. Then other corners are found rotating counterclockwise

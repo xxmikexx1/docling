@@ -11,12 +11,21 @@ _log = logging.getLogger(__name__)
 
 
 class NoOpBackend(AbstractDocumentBackend):
-    """
-    A no-op backend that only validates input existence.
-    Used e.g. for audio files where actual processing is handled by the ASR pipeline.
+    """A no-op backend that performs no conversion but validates input existence.
+
+    This backend is used as a placeholder for file formats, such as audio, where
+    the actual processing is handled by a specialized pipeline (e.g., ASR) rather
+    than a traditional document conversion backend. Its primary role is to
+    validate that the input file or stream exists and is not empty.
     """
 
     def __init__(self, in_doc: "InputDocument", path_or_stream: Union[BytesIO, Path]):
+        """Initializes the NoOpBackend.
+
+        Args:
+            in_doc: The `InputDocument` object.
+            path_or_stream: The path or stream of the input file.
+        """
         super().__init__(in_doc, path_or_stream)
 
         _log.debug(f"NoOpBackend initialized for: {path_or_stream}")
@@ -40,12 +49,15 @@ class NoOpBackend(AbstractDocumentBackend):
             self.valid = False
 
     def is_valid(self) -> bool:
+        """Checks if the input file or stream is valid (i.e., exists and is not empty)."""
         return self.valid
 
     @classmethod
     def supports_pagination(cls) -> bool:
+        """This backend does not support pagination."""
         return False
 
     @classmethod
     def supported_formats(cls) -> Set[InputFormat]:
+        """This backend notionally supports all input formats."""
         return set(InputFormat)

@@ -8,8 +8,19 @@ from docling.datamodel.base_models import Cluster
 def draw_clusters(
     image: Image.Image, clusters: list[Cluster], scale_x: float, scale_y: float
 ) -> None:
-    """
-    Draw clusters on an image
+    """Draws bounding boxes for clusters and their cells onto an image.
+
+    This function visualizes the results of layout analysis by drawing colored,
+    semi-transparent rectangles for each cluster and its constituent cells on a
+    given PIL Image. It also labels each cluster with its type and confidence score.
+
+    Args:
+        image: The `PIL.Image.Image` object on which to draw.
+        clusters: A list of `Cluster` objects to be visualized.
+        scale_x: The horizontal scaling factor to apply to the bounding box
+            coordinates.
+        scale_y: The vertical scaling factor to apply to the bounding box
+            coordinates.
     """
     draw = ImageDraw.Draw(image, "RGBA")
     # Create a smaller font for the labels

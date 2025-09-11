@@ -29,22 +29,51 @@ from docling.datamodel.settings import settings
 
 
 class BaseModelWithOptions(Protocol):
-    @classmethod
-    def get_options_type(cls) -> Type[BaseOptions]: ...
+    """A protocol for models that are initialized with an options object.
 
-    def __init__(self, *, options: BaseOptions, **kwargs): ...
+    This protocol defines the common interface for models that require a
+    configuration object (derived from `BaseOptions`) for their initialization.
+    """
+
+    @classmethod
+    def get_options_type(cls) -> Type[BaseOptions]:
+        """Returns the type of the options class required by this model."""
+        ...
+
+    def __init__(self, *, options: BaseOptions, **kwargs):
+        """Initializes the model with the given options."""
+        ...
 
 
 class BasePageModel(ABC):
+    """An abstract base class for models that process pages of a document.
+
+    This class defines the interface for models that operate on a batch of
+    pages from a `ConversionResult`.
+    """
+
     @abstractmethod
     def __call__(
         self, conv_res: ConversionResult, page_batch: Iterable[Page]
     ) -> Iterable[Page]:
+        """Processes a batch of pages.
+
+        Args:
+            conv_res: The `ConversionResult` object for the current document.
+            page_batch: An iterable of `Page` objects to be processed.
+
+        Returns:
+            An iterable of the processed `Page` objects.
+        """
         pass
 
 
 class BaseVlmModel(ABC):
-    """Base class for Vision-Language Models that adds image processing capability."""
+    """An abstract base class for Vision Language Models (VLMs).
+
+    This class defines the core interface for VLMs, which is the ability to
+    process a batch of images with a given prompt.
+    """
 
     @abstractmethod
     def process_images(
@@ -52,24 +81,28 @@ class BaseVlmModel(ABC):
         image_batch: Iterable[Union[Image, np.ndarray]],
         prompt: Union[str, list[str]],
     ) -> Iterable[VlmPrediction]:
-        """Process raw images without page metadata.
+        """Processes a batch of images with a given prompt or list of prompts.
 
         Args:
-            image_batch: Iterable of PIL Images or numpy arrays
-            prompt: Either:
-                - str: Single prompt used for all images
-                - list[str]: List of prompts (one per image, must match image count)
+            image_batch: An iterable of PIL Images or numpy arrays.
+            prompt: Either a single prompt string to be used for all images, or a
+                list of prompts (one for each image).
+
+        Returns:
+            An iterable of `VlmPrediction` objects, one for each processed image.
 
         Raises:
-            ValueError: If prompt list length doesn't match image count.
+            ValueError: If a list of prompts is provided and its length does not
+                match the number of images.
         """
 
 
 class BaseVlmPageModel(BasePageModel, BaseVlmModel):
-    """Base implementation for VLM models that inherit from BasePageModel.
+    """An abstract base class for VLM-based models that process document pages.
 
-    Provides a default __call__ implementation that extracts images from pages,
-    processes them using process_images, and attaches results back to pages.
+    This class combines the interfaces of `BasePageModel` and `BaseVlmModel`,
+    providing a foundation for models that extract images from pages, process
+    them with a VLM, and attach the results back to the pages.
     """
 
     # Type annotations for attributes that subclasses must initialize
@@ -83,7 +116,21 @@ class BaseVlmPageModel(BasePageModel, BaseVlmModel):
         """Extract images from pages, process them, and attach results back."""
 
     def formulate_prompt(self, user_prompt: str) -> str:
-        """Formulate a prompt for the VLM."""
+        """Constructs a model-specific prompt from a user-provided prompt.
+
+        This method takes a user-provided prompt and wraps it in the appropriate
+        template for the specific VLM being used, such as applying a chat
+        template or adding special tokens.
+
+        Args:
+            user_prompt: The user-facing prompt string.
+
+        Returns:
+            The fully formatted prompt ready to be sent to the model.
+
+        Raises:
+            RuntimeError: If the prompt style specified in the options is unknown.
+        """
         _log = logging.getLogger(__name__)
 
         if self.vlm_options.transformers_prompt_style == TransformersPromptStyle.RAW:
@@ -129,29 +176,72 @@ EnrichElementT = TypeVar("EnrichElementT", default=NodeItem)
 
 
 class GenericEnrichmentModel(ABC, Generic[EnrichElementT]):
+    """An abstract base class for models that enrich document elements.
+
+    This generic class defines the interface for enrichment models, which take
+    document elements, process them, and return them with additional information
+    or modifications. It supports batching of elements for efficiency.
+
+    TypeVar:
+        EnrichElementT: The type of the element to be processed by the model.
+    """
+
     elements_batch_size: int = settings.perf.elements_batch_size
 
     @abstractmethod
     def is_processable(self, doc: DoclingDocument, element: NodeItem) -> bool:
+        """Checks if a given document element can be processed by this model."""
         pass
 
     @abstractmethod
     def prepare_element(
         self, conv_res: ConversionResult, element: NodeItem
     ) -> Optional[EnrichElementT]:
+        """Prepares an element for processing.
+
+        This may involve extracting data, transforming the element, or simply
+        checking if it's processable.
+
+        Returns:
+            The prepared element, or `None` if it cannot be prepared.
+        """
         pass
 
     @abstractmethod
     def __call__(
         self, doc: DoclingDocument, element_batch: Iterable[EnrichElementT]
     ) -> Iterable[NodeItem]:
+        """Processes a batch of prepared elements.
+
+        Args:
+            doc: The `DoclingDocument` being processed.
+            element_batch: An iterable of prepared elements to be enriched.
+
+        Returns:
+            An iterable of the enriched `NodeItem`s.
+        """
         pass
 
 
 class BaseEnrichmentModel(GenericEnrichmentModel[NodeItem]):
+    """A base implementation of `GenericEnrichmentModel` for `NodeItem`s.
+
+    This class provides a default implementation of the `prepare_element` method
+    that simply checks if the element is processable and returns it if so.
+    """
+
     def prepare_element(
         self, conv_res: ConversionResult, element: NodeItem
     ) -> Optional[NodeItem]:
+        """Prepares a `NodeItem` for processing.
+
+        Args:
+            conv_res: The `ConversionResult` for the current document.
+            element: The `NodeItem` to prepare.
+
+        Returns:
+            The element if it is processable, otherwise `None`.
+        """
         if self.is_processable(doc=conv_res.document, element=element):
             return element
         return None
@@ -160,12 +250,38 @@ class BaseEnrichmentModel(GenericEnrichmentModel[NodeItem]):
 class BaseItemAndImageEnrichmentModel(
     GenericEnrichmentModel[ItemAndImageEnrichmentElement]
 ):
+    """A base class for enrichment models that process an item and its corresponding image.
+
+    This class provides a default implementation for preparing an element by
+    extracting its image from the page, potentially with an expanded bounding
+    box.
+
+    Attributes:
+        images_scale: The scaling factor to apply to the extracted image.
+        expansion_factor: A factor to expand the element's bounding box by
+            before cropping the image.
+    """
+
     images_scale: float
     expansion_factor: float = 0.0
 
     def prepare_element(
         self, conv_res: ConversionResult, element: NodeItem
     ) -> Optional[ItemAndImageEnrichmentElement]:
+        """Prepares an element by extracting its image.
+
+        This method crops the image of the element from the page image,
+        optionally expanding the bounding box. If a page image is not
+        available, it tries to get an embedded image from the element itself.
+
+        Args:
+            conv_res: The `ConversionResult` for the current document.
+            element: The `NodeItem` to prepare.
+
+        Returns:
+            An `ItemAndImageEnrichmentElement` containing the item and its
+            image, or `None` if the image cannot be obtained.
+        """
         if not self.is_processable(doc=conv_res.document, element=element):
             return None
 

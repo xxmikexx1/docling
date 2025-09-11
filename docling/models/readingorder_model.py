@@ -34,13 +34,38 @@ from docling.utils.profiling import ProfilingScope, TimeRecorder
 
 
 class ReadingOrderOptions(BaseModel):
+    """Configuration options for the `ReadingOrderModel`.
+
+    Attributes:
+        model_names: A string specifying the names of the models to use for
+            reading order prediction.
+    """
+
     model_config = ConfigDict(protected_namespaces=())
 
     model_names: str = ""  # e.g. "language;term;reference"
 
 
 class ReadingOrderModel:
+    """A model for determining the reading order of document elements.
+
+    This model takes the assembled elements of a document and uses a
+    `ReadingOrderPredictor` to sort them into a logical reading sequence. It
+    also handles the association of captions and footnotes with their parent
+    elements.
+
+    Attributes:
+        options: A `ReadingOrderOptions` object for configuration.
+        ro_model: An instance of the `ReadingOrderPredictor`.
+        list_item_processor: A `ListItemMarkerProcessor` for handling list items.
+    """
+
     def __init__(self, options: ReadingOrderOptions):
+        """Initializes the ReadingOrderModel.
+
+        Args:
+            options: The configuration options for the model.
+        """
         self.options = options
         self.ro_model = ReadingOrderPredictor()
         self.list_item_processor = ListItemMarkerProcessor()
@@ -353,6 +378,19 @@ class ReadingOrderModel:
         new_item.prov.append(prov)
 
     def __call__(self, conv_res: ConversionResult) -> DoclingDocument:
+        """Applies reading order prediction to the assembled document content.
+
+        This method takes the assembled elements from a `ConversionResult`,
+        predicts their reading order, and then reconstructs the `DoclingDocument`
+        with the elements in the correct sequence.
+
+        Args:
+            conv_res: The `ConversionResult` containing the assembled document.
+
+        Returns:
+            A new `DoclingDocument` with its elements sorted in the correct
+            reading order.
+        """
         with TimeRecorder(conv_res, "reading_order", scope=ProfilingScope.DOCUMENT):
             page_elements = self._assembled_to_readingorder_elements(conv_res)
 

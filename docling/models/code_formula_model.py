@@ -24,17 +24,12 @@ from docling.utils.accelerator_utils import decide_device
 
 
 class CodeFormulaModelOptions(BaseModel):
-    """
-    Configuration options for the CodeFormulaModel.
+    """Configuration options for the `CodeFormulaModel`.
 
-    Attributes
-    ----------
-    kind : str
-        Type of the model. Fixed value "code_formula".
-    do_code_enrichment : bool
-        True if code enrichment is enabled, False otherwise.
-    do_formula_enrichment : bool
-        True if formula enrichment is enabled, False otherwise.
+    Attributes:
+        kind: The type of the model, fixed to "code_formula".
+        do_code_enrichment: If `True`, enables the enrichment of code blocks.
+        do_formula_enrichment: If `True`, enables the enrichment of formulas.
     """
 
     kind: Literal["code_formula"] = "code_formula"
@@ -43,26 +38,16 @@ class CodeFormulaModelOptions(BaseModel):
 
 
 class CodeFormulaModel(BaseItemAndImageEnrichmentModel):
-    """
-    Model for processing and enriching documents with code and formula predictions.
+    """A model for recognizing and transcribing code and mathematical formulas from images.
 
-    Attributes
-    ----------
-    enabled : bool
-        True if the model is enabled, False otherwise.
-    options : CodeFormulaModelOptions
-        Configuration options for the CodeFormulaModel.
-    code_formula_model : CodeFormulaPredictor
-        The predictor model for code and formula processing.
+    This model uses a vision-encoder-decoder architecture to process images of
+    code blocks and formulas, converting them into structured text (e.g., LaTeX
+    for formulas).
 
-    Methods
-    -------
-    __init__(self, enabled, artifacts_path, accelerator_options, code_formula_options)
-        Initializes the CodeFormulaModel with the given configuration options.
-    is_processable(self, doc, element)
-        Determines if a given element in a document can be processed by the model.
-    __call__(self, doc, element_batch)
-        Processes the given batch of elements and enriches them with predictions.
+    Attributes:
+        enabled: A boolean indicating if the model is enabled.
+        options: A `CodeFormulaModelOptions` object for configuration.
+        device: The accelerator device (e.g., "cuda", "cpu") to run the model on.
     """
 
     _model_repo_folder = "ds4sd--CodeFormulaV2"
@@ -77,19 +62,14 @@ class CodeFormulaModel(BaseItemAndImageEnrichmentModel):
         options: CodeFormulaModelOptions,
         accelerator_options: AcceleratorOptions,
     ):
-        """
-        Initializes the CodeFormulaModel with the given configuration.
+        """Initializes the CodeFormulaModel.
 
-        Parameters
-        ----------
-        enabled : bool
-            True if the model is enabled, False otherwise.
-        artifacts_path : Path
-            Path to the directory containing the model artifacts.
-        options : CodeFormulaModelOptions
-            Configuration options for the model.
-        accelerator_options : AcceleratorOptions
-            Options specifying the device and number of threads for acceleration.
+        Args:
+            enabled: A boolean flag to enable or disable the model.
+            artifacts_path: An optional path to the directory containing the
+                model artifacts. If not provided, the model will be downloaded.
+            options: The configuration options for the model.
+            accelerator_options: The hardware acceleration options.
         """
         self.enabled = enabled
         self.options = options
@@ -120,6 +100,16 @@ class CodeFormulaModel(BaseItemAndImageEnrichmentModel):
         force: bool = False,
         progress: bool = False,
     ) -> Path:
+        """Downloads the CodeFormulaV2 model from Hugging Face.
+
+        Args:
+            local_dir: An optional local directory to save the model to.
+            force: If `True`, forces the re-download of the model.
+            progress: If `True`, displays a progress bar.
+
+        Returns:
+            The path to the local directory where the model is saved.
+        """
         return download_hf_model(
             repo_id="ds4sd/CodeFormulaV2",
             revision="main",
@@ -129,20 +119,18 @@ class CodeFormulaModel(BaseItemAndImageEnrichmentModel):
         )
 
     def is_processable(self, doc: DoclingDocument, element: NodeItem) -> bool:
-        """
-        Determines if a given element in a document can be processed by the model.
+        """Determines if a given element can be processed by this model.
 
-        Parameters
-        ----------
-        doc : DoclingDocument
-            The document being processed.
-        element : NodeItem
-            The element within the document to check.
+        This model can process `CodeItem` elements (if code enrichment is enabled)
+        and `TextItem` elements with the label `FORMULA` (if formula enrichment
+        is enabled).
 
-        Returns
-        -------
-        bool
-            True if the element can be processed, False otherwise.
+        Args:
+            doc: The `DoclingDocument` being processed.
+            element: The `NodeItem` to check.
+
+        Returns:
+            `True` if the element is processable, `False` otherwise.
         """
         return self.enabled and (
             (isinstance(element, CodeItem) and self.options.do_code_enrichment)
@@ -279,20 +267,18 @@ class CodeFormulaModel(BaseItemAndImageEnrichmentModel):
         doc: DoclingDocument,
         element_batch: Iterable[ItemAndImageEnrichmentElement],
     ) -> Iterable[NodeItem]:
-        """
-        Processes the given batch of elements and enriches them with predictions.
+        """Processes a batch of elements and enriches them with predictions.
 
-        Parameters
-        ----------
-        doc : DoclingDocument
-            The document being processed.
-        element_batch : Iterable[ItemAndImageEnrichmentElement]
-            A batch of elements to be processed.
+        This method takes a batch of `ItemAndImageEnrichmentElement` objects,
+        runs them through the CodeFormulaV2 model, and updates the `text` and
+        `code_language` attributes of the original items with the model's output.
 
-        Returns
-        -------
-        Iterable[Any]
-            An iterable of enriched elements.
+        Args:
+            doc: The `DoclingDocument` being processed.
+            element_batch: An iterable of elements to be enriched.
+
+        Returns:
+            An iterable of the enriched `NodeItem`s.
         """
         if not self.enabled:
             for element in element_batch:

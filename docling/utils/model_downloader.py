@@ -39,6 +39,33 @@ def download_models(
     with_granite_vision: bool = False,
     with_easyocr: bool = True,
 ):
+    """Downloads all the required machine learning models for Docling.
+
+    This utility function provides a convenient way to pre-download and cache all
+    the models used in the various Docling pipelines. This is useful for
+    setting up an environment, especially in offline or containerized settings.
+
+    Args:
+        output_dir: The directory where the models should be saved. If not
+            provided, it defaults to the cache directory specified in the
+            application settings.
+        force: If `True`, forces the re-download of models even if they
+            already exist in the cache.
+        progress: If `True`, displays a progress bar during the download.
+        with_layout: If `True`, downloads the layout analysis model.
+        with_tableformer: If `True`, downloads the table structure model.
+        with_code_formula: If `True`, downloads the code and formula detection model.
+        with_picture_classifier: If `True`, downloads the picture classification model.
+        with_smolvlm: If `True`, downloads the SmolVLM model.
+        with_smoldocling: If `True`, downloads the SmolDocling model.
+        with_smoldocling_mlx: If `True`, downloads the MLX version of the
+            SmolDocling model.
+        with_granite_vision: If `True`, downloads the Granite Vision model.
+        with_easyocr: If `True`, downloads the EasyOCR models.
+
+    Returns:
+        The path to the directory where the models were downloaded.
+    """
     if output_dir is None:
         output_dir = settings.cache_dir / "models"
 

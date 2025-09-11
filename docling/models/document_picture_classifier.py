@@ -21,42 +21,25 @@ from docling.utils.accelerator_utils import decide_device
 
 
 class DocumentPictureClassifierOptions(BaseModel):
-    """
-    Options for configuring the DocumentPictureClassifier.
+    """Configuration options for the `DocumentPictureClassifier`.
 
-    Attributes
-    ----------
-    kind : Literal["document_picture_classifier"]
-        Identifier for the type of classifier.
+    Attributes:
+        kind: The type of the model, fixed to "document_picture_classifier".
     """
 
     kind: Literal["document_picture_classifier"] = "document_picture_classifier"
 
 
 class DocumentPictureClassifier(BaseItemAndImageEnrichmentModel):
-    """
-    A model for classifying pictures in documents.
+    """A model for classifying pictures within a document.
 
-    This class enriches document pictures with predicted classifications
-    based on a predefined set of classes.
+    This model enriches `PictureItem` elements with predicted classifications
+    (e.g., "photograph", "diagram", "table") based on a pre-trained model.
 
-    Attributes
-    ----------
-    enabled : bool
-        Whether the classifier is enabled for use.
-    options : DocumentPictureClassifierOptions
-        Configuration options for the classifier.
-    document_picture_classifier : DocumentPictureClassifierPredictor
-        The underlying prediction model, loaded if the classifier is enabled.
-
-    Methods
-    -------
-    __init__(enabled, artifacts_path, options, accelerator_options)
-        Initializes the classifier with specified configurations.
-    is_processable(doc, element)
-        Checks if the given element can be processed by the classifier.
-    __call__(doc, element_batch)
-        Processes a batch of elements and adds classification annotations.
+    Attributes:
+        enabled: A boolean indicating if the model is enabled.
+        options: A `DocumentPictureClassifierOptions` object for configuration.
+        document_picture_classifier: An instance of the underlying predictor model.
     """
 
     _model_repo_folder = "ds4sd--DocumentFigureClassifier"
@@ -69,19 +52,14 @@ class DocumentPictureClassifier(BaseItemAndImageEnrichmentModel):
         options: DocumentPictureClassifierOptions,
         accelerator_options: AcceleratorOptions,
     ):
-        """
-        Initializes the DocumentPictureClassifier.
+        """Initializes the DocumentPictureClassifier.
 
-        Parameters
-        ----------
-        enabled : bool
-            Indicates whether the classifier is enabled.
-        artifacts_path : Optional[Union[Path, str]],
-            Path to the directory containing model artifacts.
-        options : DocumentPictureClassifierOptions
-            Configuration options for the classifier.
-        accelerator_options : AcceleratorOptions
-            Options for configuring the device and parallelism.
+        Args:
+            enabled: A boolean flag to enable or disable the model.
+            artifacts_path: An optional path to the directory containing the
+                model artifacts. If not provided, the model will be downloaded.
+            options: The configuration options for the classifier.
+            accelerator_options: The hardware acceleration options.
         """
         self.enabled = enabled
         self.options = options
@@ -107,6 +85,16 @@ class DocumentPictureClassifier(BaseItemAndImageEnrichmentModel):
     def download_models(
         local_dir: Optional[Path] = None, force: bool = False, progress: bool = False
     ) -> Path:
+        """Downloads the DocumentFigureClassifier model from Hugging Face.
+
+        Args:
+            local_dir: An optional local directory to save the model to.
+            force: If `True`, forces the re-download of the model.
+            progress: If `True`, displays a progress bar.
+
+        Returns:
+            The path to the local directory where the model is saved.
+        """
         return download_hf_model(
             repo_id="ds4sd/DocumentFigureClassifier",
             revision="v1.0.1",
@@ -116,20 +104,16 @@ class DocumentPictureClassifier(BaseItemAndImageEnrichmentModel):
         )
 
     def is_processable(self, doc: DoclingDocument, element: NodeItem) -> bool:
-        """
-        Determines if the given element can be processed by the classifier.
+        """Determines if a given element can be processed by this model.
 
-        Parameters
-        ----------
-        doc : DoclingDocument
-            The document containing the element.
-        element : NodeItem
-            The element to be checked.
+        This model can only process `PictureItem` elements.
 
-        Returns
-        -------
-        bool
-            True if the element is a PictureItem and processing is enabled; False otherwise.
+        Args:
+            doc: The `DoclingDocument` being processed.
+            element: The `NodeItem` to check.
+
+        Returns:
+            `True` if the element is a `PictureItem`, `False` otherwise.
         """
         return self.enabled and isinstance(element, PictureItem)
 
@@ -138,21 +122,15 @@ class DocumentPictureClassifier(BaseItemAndImageEnrichmentModel):
         doc: DoclingDocument,
         element_batch: Iterable[ItemAndImageEnrichmentElement],
     ) -> Iterable[NodeItem]:
-        """
-        Processes a batch of elements and enriches them with classification predictions.
+        """Processes a batch of picture elements and adds classification predictions.
 
-        Parameters
-        ----------
-        doc : DoclingDocument
-            The document containing the elements to be processed.
-        element_batch : Iterable[ItemAndImageEnrichmentElement]
-            A batch of pictures to classify.
+        Args:
+            doc: The `DoclingDocument` being processed.
+            element_batch: An iterable of picture elements to be classified.
 
-        Returns
-        -------
-        Iterable[NodeItem]
-            An iterable of NodeItem objects after processing. The field
-            'data.classification' is added containing the classification for each picture.
+        Returns:
+            An iterable of the enriched `PictureItem`s with classification
+            annotations added.
         """
         if not self.enabled:
             for element in element_batch:

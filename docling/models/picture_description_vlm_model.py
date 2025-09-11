@@ -24,8 +24,22 @@ _model_init_lock = threading.Lock()
 class PictureDescriptionVlmModel(
     PictureDescriptionBaseModel, HuggingFaceModelDownloadMixin
 ):
+    """A model that uses a local Vision Language Model (VLM) to generate descriptions for pictures.
+
+    This class implements the `PictureDescriptionBaseModel` interface to generate
+    textual descriptions for images by running a local VLM from the Hugging Face
+    Hub.
+
+    Attributes:
+        device: The accelerator device (e.g., "cuda", "cpu") to run the model on.
+        processor: The processor for the VLM, used for tokenization and image
+            preprocessing.
+        model: The VLM itself.
+    """
+
     @classmethod
     def get_options_type(cls) -> Type[PictureDescriptionBaseOptions]:
+        """Returns the options type for this model, which is `PictureDescriptionVlmOptions`."""
         return PictureDescriptionVlmOptions
 
     def __init__(
@@ -36,6 +50,17 @@ class PictureDescriptionVlmModel(
         options: PictureDescriptionVlmOptions,
         accelerator_options: AcceleratorOptions,
     ):
+        """Initializes the PictureDescriptionVlmModel.
+
+        Args:
+            enabled: A boolean flag to enable or disable the model.
+            enable_remote_services: A boolean flag that must be `True` to allow
+                the model to make remote API calls.
+            artifacts_path: An optional path to the directory containing the
+                model artifacts. If not provided, the model will be downloaded.
+            options: The configuration options for the VLM.
+            accelerator_options: The hardware acceleration options.
+        """
         super().__init__(
             enabled=enabled,
             enable_remote_services=enable_remote_services,

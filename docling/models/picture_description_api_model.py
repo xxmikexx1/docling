@@ -16,10 +16,20 @@ from docling.utils.api_image_request import api_image_request
 
 
 class PictureDescriptionApiModel(PictureDescriptionBaseModel):
+    """A model that uses an external API to generate descriptions for pictures.
+
+    This class implements the `PictureDescriptionBaseModel` interface to generate
+    textual descriptions for images by sending them to a remote API endpoint.
+
+    Attributes:
+        concurrency: The number of concurrent requests to make to the API.
+    """
+
     # elements_batch_size = 4
 
     @classmethod
     def get_options_type(cls) -> Type[PictureDescriptionBaseOptions]:
+        """Returns the options type for this model, which is `PictureDescriptionApiOptions`."""
         return PictureDescriptionApiOptions
 
     def __init__(
@@ -30,6 +40,20 @@ class PictureDescriptionApiModel(PictureDescriptionBaseModel):
         options: PictureDescriptionApiOptions,
         accelerator_options: AcceleratorOptions,
     ):
+        """Initializes the PictureDescriptionApiModel.
+
+        Args:
+            enabled: A boolean flag to enable or disable the model.
+            enable_remote_services: A boolean flag that must be `True` to allow
+                the model to make remote API calls.
+            artifacts_path: An optional path to a directory for saving artifacts.
+            options: The configuration options for the API model.
+            accelerator_options: The hardware acceleration options.
+
+        Raises:
+            OperationNotAllowed: If the model is enabled but remote services
+                are not.
+        """
         super().__init__(
             enabled=enabled,
             enable_remote_services=enable_remote_services,

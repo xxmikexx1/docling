@@ -27,7 +27,26 @@ DEFAULT_IMAGE_HEIGHT: Final = 128
 
 
 class AsciiDocBackend(DeclarativeDocumentBackend):
+    """A backend for parsing AsciiDoc files.
+
+    This class implements the `DeclarativeDocumentBackend` interface to provide
+    a parser for documents written in the AsciiDoc format. It converts the
+    AsciiDoc source into a `DoclingDocument` object.
+    """
+
     def __init__(self, in_doc: InputDocument, path_or_stream: Union[BytesIO, Path]):
+        """Initializes the AsciiDocBackend.
+
+        This reads the content of the AsciiDoc file from the given path or stream
+        and prepares it for parsing.
+
+        Args:
+            in_doc: The `InputDocument` object representing the source document.
+            path_or_stream: The path or stream of the AsciiDoc content.
+
+        Raises:
+            RuntimeError: If the backend cannot be initialized.
+        """
         super().__init__(in_doc, path_or_stream)
 
         self.path_or_stream = path_or_stream
@@ -48,22 +67,31 @@ class AsciiDocBackend(DeclarativeDocumentBackend):
         return
 
     def is_valid(self) -> bool:
+        """Checks if the backend was initialized successfully."""
         return self.valid
 
     @classmethod
     def supports_pagination(cls) -> bool:
+        """AsciiDoc is not a paginated format."""
         return False
 
     def unload(self):
+        """No resources to unload for this backend."""
         return
 
     @classmethod
     def supported_formats(cls) -> Set[InputFormat]:
+        """Returns the set of supported formats, which is just ASCIIDOC."""
         return {InputFormat.ASCIIDOC}
 
     def convert(self) -> DoclingDocument:
-        """
-        Parses the ASCII into a structured document model.
+        """Parses the AsciiDoc content into a `DoclingDocument`.
+
+        This method orchestrates the parsing of the AsciiDoc source and builds
+        a `DoclingDocument` object representing its structure and content.
+
+        Returns:
+            A `DoclingDocument` object.
         """
 
         origin = DocumentOrigin(

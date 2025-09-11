@@ -7,7 +7,18 @@ from docling.utils.orientation import CLIPPED_ORIENTATIONS, rotate_bounding_box
 
 
 def map_tesseract_script(script: str) -> str:
-    r""" """
+    """Maps Tesseract script names to a more common representation.
+
+    This function standardizes script names returned by Tesseract's script
+    detection to ensure consistency. For example, it maps "Katakana" and
+    "Hiragana" to "Japanese".
+
+    Args:
+        script: The script name as returned by Tesseract.
+
+    Returns:
+        The standardized script name.
+    """
     if script == "Katakana" or script == "Hiragana":
         script = "Japanese"
     elif script == "Han":
@@ -18,6 +29,21 @@ def map_tesseract_script(script: str) -> str:
 
 
 def parse_tesseract_orientation(orientation: str) -> int:
+    """Parses and converts Tesseract's orientation value.
+
+    Tesseract reports orientation in clockwise degrees (0, 90, 180, 270). This
+    function converts this value to a counter-clockwise angle in the range
+    [0, 360) to match the convention used for bounding rectangles.
+
+    Args:
+        orientation: The orientation string as returned by Tesseract.
+
+    Returns:
+        The orientation in counter-clockwise degrees.
+
+    Raises:
+        ValueError: If the orientation value is not one of the expected values.
+    """
     # Tesseract orientation is [0, 90, 180, 270] clockwise, bounding rectangle angles
     # are [0, 360[ counterclockwise
     parsed = int(orientation)
@@ -40,6 +66,25 @@ def tesseract_box_to_bounding_rectangle(
     orientation: int,
     im_size: Tuple[int, int],
 ) -> BoundingRectangle:
+    """Converts a Tesseract bounding box to a `BoundingRectangle`.
+
+    This function takes a bounding box from Tesseract, which is typically
+    axis-aligned to a potentially rotated image, and converts it into a
+    `BoundingRectangle` with absolute coordinates on the original, unrotated page.
+    It accounts for rotation, scaling, and any offset from cropping.
+
+    Args:
+        bbox: The `BoundingBox` from Tesseract.
+        original_offset: An optional `BoundingBox` representing the crop offset
+            of the processed image relative to the original page.
+        scale: The scaling factor that was applied to the image before OCR.
+        orientation: The clockwise orientation of the image that was given to
+            Tesseract.
+        im_size: The size of the image that was processed by Tesseract.
+
+    Returns:
+        A `BoundingRectangle` with coordinates relative to the original page.
+    """
     # box is in the top, left, height, width format, top left coordinates
     rect = rotate_bounding_box(bbox, angle=orientation, im_size=im_size)
     rect = BoundingRectangle(

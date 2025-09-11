@@ -24,14 +24,46 @@ _log = logging.getLogger(__name__)
 
 
 class PageAssembleOptions(BaseModel):
+    """Configuration options for the `PageAssembleModel`.
+
+    This class is currently a placeholder and does not define any options.
+    """
+
     pass
 
 
 class PageAssembleModel(BasePageModel):
+    """A model for assembling the final page structure from model predictions.
+
+    This model takes the processed clusters from the layout model and other
+    predictions (e.g., table structure, figure classification) and assembles
+    them into a structured representation of the page content.
+
+    Attributes:
+        options: A `PageAssembleOptions` object for configuration.
+    """
+
     def __init__(self, options: PageAssembleOptions):
+        """Initializes the PageAssembleModel.
+
+        Args:
+            options: The configuration options for the model.
+        """
         self.options = options
 
     def sanitize_text(self, lines):
+        """Sanitizes a list of text lines by joining them and normalizing characters.
+
+        This method handles de-hyphenation of words at the end of lines and
+        replaces various Unicode punctuation characters with their standard
+        ASCII equivalents.
+
+        Args:
+            lines: A list of strings, where each string is a line of text.
+
+        Returns:
+            A single string containing the sanitized and joined text.
+        """
         if len(lines) <= 1:
             return " ".join(lines)
 
@@ -67,6 +99,20 @@ class PageAssembleModel(BasePageModel):
     def __call__(
         self, conv_res: ConversionResult, page_batch: Iterable[Page]
     ) -> Iterable[Page]:
+        """Processes a batch of pages, assembling their final structure.
+
+        This method iterates through the layout clusters of each page and
+        creates the corresponding `PageElement` objects (e.g., `TextElement`,
+        `Table`, `FigureElement`). It then populates the `assembled` attribute
+        of the `Page` object.
+
+        Args:
+            conv_res: The `ConversionResult` for the current document.
+            page_batch: An iterable of `Page` objects to be processed.
+
+        Yields:
+            The processed `Page` objects with their `assembled` attribute populated.
+        """
         for page in page_batch:
             assert page._backend is not None
             if not page._backend.is_valid():

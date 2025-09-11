@@ -16,6 +16,15 @@ from docling.utils.profiling import TimeRecorder
 
 
 class PagePreprocessingOptions(BaseModel):
+    """Configuration options for the `PagePreprocessingModel`.
+
+    Attributes:
+        images_scale: An optional scaling factor to apply when generating page
+            images.
+        skip_cell_extraction: If `True`, skips the extraction of text cells,
+            which is useful for VLM-only processing pipelines.
+    """
+
     images_scale: Optional[float]
     skip_cell_extraction: bool = (
         False  # Skip text cell extraction for VLM-only processing
@@ -23,7 +32,21 @@ class PagePreprocessingOptions(BaseModel):
 
 
 class PagePreprocessingModel(BasePageModel):
+    """A model for performing initial pre-processing on document pages.
+
+    This model is responsible for two main tasks:
+    1. Generating and caching page images at the required scales.
+    2. Extracting text cells from the page using the underlying backend.
+
+    It also includes a method for rating the quality of the extracted text.
+    """
+
     def __init__(self, options: PagePreprocessingOptions):
+        """Initializes the PagePreprocessingModel.
+
+        Args:
+            options: The configuration options for the model.
+        """
         self.options = options
 
         # Pre-compiled regex patterns for efficiency
@@ -37,6 +60,15 @@ class PagePreprocessingModel(BasePageModel):
     def __call__(
         self, conv_res: ConversionResult, page_batch: Iterable[Page]
     ) -> Iterable[Page]:
+        """Processes a batch of pages, populating them with images and text cells.
+
+        Args:
+            conv_res: The `ConversionResult` for the current document.
+            page_batch: An iterable of `Page` objects to be processed.
+
+        Yields:
+            The processed `Page` objects with images and text cells populated.
+        """
         for page in page_batch:
             assert page._backend is not None
             if not page._backend.is_valid():
@@ -118,6 +150,18 @@ class PagePreprocessingModel(BasePageModel):
         return page
 
     def rate_text_quality(self, text: str) -> float:
+        """Rates the quality of extracted text based on a set of heuristics.
+
+        This method checks for common parsing errors and artifacts, such as
+        replacement characters (`�`), "GLYPH" markers, and fragmented text,
+        and assigns a quality score between 0.0 and 1.0.
+
+        Args:
+            text: The text to be rated.
+
+        Returns:
+            A float representing the quality score.
+        """
         # Hard errors: if any of these patterns are found, return 0.0 immediately.
         blacklist_chars = ["�"]
         if (

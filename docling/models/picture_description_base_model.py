@@ -27,6 +27,19 @@ from docling.models.base_model import (
 class PictureDescriptionBaseModel(
     BaseItemAndImageEnrichmentModel, BaseModelWithOptions
 ):
+    """An abstract base class for picture description models.
+
+    This class provides a common framework for models that generate textual
+    descriptions for images. It handles the processing of `PictureItem` elements,
+    filtering them based on size, and attaching the generated descriptions as
+    annotations.
+
+    Attributes:
+        enabled: A boolean indicating if the model is enabled.
+        options: A `PictureDescriptionBaseOptions` object for configuration.
+        provenance: A string identifying the source of the description.
+    """
+
     images_scale: float = 2.0
 
     def __init__(
@@ -38,11 +51,32 @@ class PictureDescriptionBaseModel(
         options: PictureDescriptionBaseOptions,
         accelerator_options: AcceleratorOptions,
     ):
+        """Initializes the PictureDescriptionBaseModel.
+
+        Args:
+            enabled: A boolean flag to enable or disable the model.
+            enable_remote_services: A boolean flag that must be `True` to allow
+                the model to make remote API calls.
+            artifacts_path: An optional path to a directory for saving artifacts.
+            options: The configuration options for the model.
+            accelerator_options: The hardware acceleration options.
+        """
         self.enabled = enabled
         self.options = options
         self.provenance = "not-implemented"
 
     def is_processable(self, doc: DoclingDocument, element: NodeItem) -> bool:
+        """Determines if a given element can be processed by this model.
+
+        This model can only process `PictureItem` elements.
+
+        Args:
+            doc: The `DoclingDocument` being processed.
+            element: The `NodeItem` to check.
+
+        Returns:
+            `True` if the element is a `PictureItem`, `False` otherwise.
+        """
         return self.enabled and isinstance(element, PictureItem)
 
     def _annotate_images(self, images: Iterable[Image.Image]) -> Iterable[str]:
@@ -53,6 +87,15 @@ class PictureDescriptionBaseModel(
         doc: DoclingDocument,
         element_batch: Iterable[ItemAndImageEnrichmentElement],
     ) -> Iterable[NodeItem]:
+        """Processes a batch of picture elements and adds descriptions as annotations.
+
+        Args:
+            doc: The `DoclingDocument` being processed.
+            element_batch: An iterable of picture elements to be described.
+
+        Returns:
+            An iterable of the enriched `PictureItem`s with descriptions added.
+        """
         if not self.enabled:
             for element in element_batch:
                 yield element.item
@@ -88,4 +131,5 @@ class PictureDescriptionBaseModel(
     @classmethod
     @abstractmethod
     def get_options_type(cls) -> Type[PictureDescriptionBaseOptions]:
+        """Returns the options type for this model."""
         pass

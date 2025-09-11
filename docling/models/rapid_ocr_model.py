@@ -23,6 +23,16 @@ _log = logging.getLogger(__name__)
 
 
 class RapidOcrModel(BaseOcrModel):
+    """An OCR model that uses the `RapidOCR` library.
+
+    This class implements the `BaseOcrModel` interface to provide OCR
+    functionality using the RapidOCR engine.
+
+    Attributes:
+        scale: The scaling factor applied to images before OCR.
+        reader: An instance of the `RapidOCR` class.
+    """
+
     def __init__(
         self,
         enabled: bool,
@@ -30,6 +40,17 @@ class RapidOcrModel(BaseOcrModel):
         options: RapidOcrOptions,
         accelerator_options: AcceleratorOptions,
     ):
+        """Initializes the RapidOcrModel.
+
+        Args:
+            enabled: A boolean flag to enable or disable the model.
+            artifacts_path: An optional path to a directory for saving artifacts.
+            options: The configuration options for the RapidOCR model.
+            accelerator_options: The hardware acceleration options.
+
+        Raises:
+            ImportError: If the `rapidocr` library is not installed.
+        """
         super().__init__(
             enabled=enabled,
             artifacts_path=artifacts_path,
@@ -93,6 +114,15 @@ class RapidOcrModel(BaseOcrModel):
     def __call__(
         self, conv_res: ConversionResult, page_batch: Iterable[Page]
     ) -> Iterable[Page]:
+        """Processes a batch of pages, performing OCR on designated regions.
+
+        Args:
+            conv_res: The `ConversionResult` for the current document.
+            page_batch: An iterable of `Page` objects to be processed.
+
+        Yields:
+            The processed `Page` objects with OCR results merged into the text cells.
+        """
         if not self.enabled:
             yield from page_batch
             return
@@ -166,4 +196,5 @@ class RapidOcrModel(BaseOcrModel):
 
     @classmethod
     def get_options_type(cls) -> Type[OcrOptions]:
+        """Returns the options type for this model, which is `RapidOcrOptions`."""
         return RapidOcrOptions

@@ -23,6 +23,17 @@ _log = logging.getLogger(__name__)
 
 
 class OcrMacModel(BaseOcrModel):
+    """An OCR model that uses the `ocrmac` library on macOS.
+
+    This class implements the `BaseOcrModel` interface to provide OCR
+    functionality using Apple's Vision framework, which is only available on
+    macOS.
+
+    Attributes:
+        scale: The scaling factor applied to images before OCR.
+        reader_RIL: An instance of the `ocrmac.OCR` class.
+    """
+
     def __init__(
         self,
         enabled: bool,
@@ -30,6 +41,18 @@ class OcrMacModel(BaseOcrModel):
         options: OcrMacOptions,
         accelerator_options: AcceleratorOptions,
     ):
+        """Initializes the OcrMacModel.
+
+        Args:
+            enabled: A boolean flag to enable or disable the model.
+            artifacts_path: An optional path to a directory for saving artifacts.
+            options: The configuration options for the OcrMac model.
+            accelerator_options: The hardware acceleration options.
+
+        Raises:
+            RuntimeError: If the operating system is not macOS.
+            ImportError: If the `ocrmac` library is not installed.
+        """
         super().__init__(
             enabled=enabled,
             artifacts_path=artifacts_path,
@@ -59,6 +82,15 @@ class OcrMacModel(BaseOcrModel):
     def __call__(
         self, conv_res: ConversionResult, page_batch: Iterable[Page]
     ) -> Iterable[Page]:
+        """Processes a batch of pages, performing OCR on designated regions.
+
+        Args:
+            conv_res: The `ConversionResult` for the current document.
+            page_batch: An iterable of `Page` objects to be processed.
+
+        Yields:
+            The processed `Page` objects with OCR results merged into the text cells.
+        """
         if not self.enabled:
             yield from page_batch
             return
@@ -142,4 +174,5 @@ class OcrMacModel(BaseOcrModel):
 
     @classmethod
     def get_options_type(cls) -> Type[OcrOptions]:
+        """Returns the options type for this model, which is `OcrMacOptions`."""
         return OcrMacOptions

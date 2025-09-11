@@ -9,12 +9,24 @@ _log = logging.getLogger(__name__)
 def decide_device(
     accelerator_device: str, supported_devices: Optional[List[AcceleratorDevice]] = None
 ) -> str:
-    r"""
-    Resolve the device based on the acceleration options and the available devices in the system.
+    """Resolves the best accelerator device based on system availability and user preference.
 
-    Rules:
-    1. AUTO: Check for the best available device on the system.
-    2. User-defined: Check if the device actually exists, otherwise fall-back to CPU
+    This function determines the most appropriate hardware accelerator to use for
+    model inference. It follows a set of rules to select the device:
+    1. If `accelerator_device` is "auto", it checks for the best available
+       device on the system (CUDA, then MPS, then CPU).
+    2. If a specific device (e.g., "cuda:0", "mps") is requested, it checks if
+       that device is available. If not, it falls back to the CPU.
+
+    Args:
+        accelerator_device: The user-specified device preference (e.g., "auto",
+            "cuda", "mps", "cpu").
+        supported_devices: An optional list of `AcceleratorDevice` enums that
+            the model supports. If provided, the selection will be limited to
+            these devices.
+
+    Returns:
+        A string representing the chosen device (e.g., "cuda:0", "mps", "cpu").
     """
     import torch
 

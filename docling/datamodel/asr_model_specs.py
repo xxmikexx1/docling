@@ -84,6 +84,20 @@ WHISPER_TURBO = InlineAsrNativeWhisperOptions(
 
 
 class AsrModelType(str, Enum):
+    """An enumeration of supported Automatic Speech Recognition (ASR) models.
+
+    This enum provides a standardized set of identifiers for different ASR models,
+    making it easier to specify which model to use for transcription tasks.
+
+    Attributes:
+        WHISPER_TINY: The 'tiny' version of the Whisper model.
+        WHISPER_SMALL: The 'small' version of the Whisper model.
+        WHISPER_MEDIUM: The 'medium' version of the Whisper model.
+        WHISPER_BASE: The 'base' version of the Whisper model.
+        WHISPER_LARGE: The 'large' version of the Whisper model.
+        WHISPER_TURBO: A 'turbo' version of the Whisper model, optimized for speed.
+    """
+
     WHISPER_TINY = "whisper_tiny"
     WHISPER_SMALL = "whisper_small"
     WHISPER_MEDIUM = "whisper_medium"

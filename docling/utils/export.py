@@ -13,6 +13,29 @@ _log = logging.getLogger(__name__)
 def generate_multimodal_pages(
     doc_result: ConversionResult,
 ) -> Iterable[Tuple[str, str, List[Dict[str, Any]], List[Dict[str, Any]], Page]]:
+    """Generates multimodal data for each page in a document conversion result.
+
+    This function iterates through the pages of a processed document and yields a
+    tuple containing various representations of the page's content, including
+    plain text, Markdown, DocTags, and structured data for cells and segments.
+    This is useful for creating datasets or for applications that require multiple
+    views of the document content.
+
+    Args:
+        doc_result: The `ConversionResult` object containing the processed document.
+
+    Yields:
+        A tuple for each page, containing:
+        - `content_text`: The plain text content of the page.
+        - `content_md`: The Markdown representation of the page.
+        - `content_dt`: The DocTags representation of the page.
+        - `page_cells`: A list of dictionaries, each representing a text cell
+          with its text, bounding box, and OCR information.
+        - `page_segments`: A list of dictionaries, each representing a layout
+          segment with its label, text, bounding box, and any associated data
+          (like HTML for tables).
+        - `page`: The `Page` object itself.
+    """
     label_to_doclaynet = {
         "title": "title",
         "table-of-contents": "document_index",

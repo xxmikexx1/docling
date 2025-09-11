@@ -11,12 +11,39 @@ from docling.utils.profiling import TimeRecorder
 
 
 class ApiVlmModel(BasePageModel):
+    """A model that uses an external API for Vision Language Model (VLM) processing.
+
+    This class implements the `BasePageModel` interface to process pages by
+    sending their images to a remote VLM service via an API call. It handles
+    the construction of the API request and the parsing of the response.
+
+    Attributes:
+        enabled: A boolean indicating if the model is enabled.
+        vlm_options: An `ApiVlmOptions` object containing the configuration for
+            the API-based VLM.
+        timeout: The request timeout in seconds.
+        concurrency: The number of concurrent requests to make to the API.
+        params: A dictionary of parameters to include in the API request.
+    """
+
     def __init__(
         self,
         enabled: bool,
         enable_remote_services: bool,
         vlm_options: ApiVlmOptions,
     ):
+        """Initializes the ApiVlmModel.
+
+        Args:
+            enabled: A boolean flag to enable or disable the model.
+            enable_remote_services: A boolean flag that must be `True` to allow
+                the model to make remote API calls.
+            vlm_options: The configuration options for the API VLM.
+
+        Raises:
+            OperationNotAllowed: If the model is enabled but remote services
+                are not.
+        """
         self.enabled = enabled
         self.vlm_options = vlm_options
         if self.enabled:
@@ -37,6 +64,20 @@ class ApiVlmModel(BasePageModel):
     def __call__(
         self, conv_res: ConversionResult, page_batch: Iterable[Page]
     ) -> Iterable[Page]:
+        """Processes a batch of pages by making API calls to a VLM service.
+
+        This method uses a thread pool to concurrently process the pages in the
+        batch. For each page, it renders an image, sends it to the configured
+        API endpoint, and attaches the VLM's response to the page's predictions.
+
+        Args:
+            conv_res: The `ConversionResult` for the current document.
+            page_batch: An iterable of `Page` objects to be processed.
+
+        Yields:
+            The processed `Page` objects with VLM predictions attached.
+        """
+
         def _vlm_request(page):
             assert page._backend is not None
             if not page._backend.is_valid():

@@ -15,18 +15,54 @@ _log = logging.getLogger(__name__)
 
 
 class UnionFind:
-    """Efficient Union-Find data structure for grouping elements."""
+    """An efficient implementation of the Union-Find data structure.
+
+    This class is used for grouping elements into disjoint sets and determining
+    if two elements are in the same set. It uses path compression and union by
+    rank for optimization.
+
+    Attributes:
+        parent: A dictionary mapping each element to its parent in the set.
+        rank: A dictionary storing the rank of each element, used to keep the
+            trees flat during union operations.
+    """
 
     def __init__(self, elements):
+        """Initializes the Union-Find structure with a set of elements.
+
+        Args:
+            elements: An iterable of initial elements to be placed in their own
+                disjoint sets.
+        """
         self.parent = {elem: elem for elem in elements}
         self.rank = dict.fromkeys(elements, 0)
 
     def find(self, x):
+        """Finds the representative (root) of the set containing element x.
+
+        This method uses path compression to flatten the tree structure, which
+        speeds up future `find` operations.
+
+        Args:
+            x: The element to find.
+
+        Returns:
+            The representative of the set containing x.
+        """
         if self.parent[x] != x:
             self.parent[x] = self.find(self.parent[x])  # Path compression
         return self.parent[x]
 
     def union(self, x, y):
+        """Merges the sets containing elements x and y.
+
+        This method uses union by rank to keep the tree structure as flat as
+        possible, ensuring efficient `find` operations.
+
+        Args:
+            x: The first element.
+            y: The second element.
+        """
         root_x, root_y = self.find(x), self.find(y)
         if root_x == root_y:
             return
@@ -40,7 +76,14 @@ class UnionFind:
             self.rank[root_x] += 1
 
     def get_groups(self) -> Dict[int, List[int]]:
-        """Returns groups as {root: [elements]}."""
+        """Returns the disjoint sets as a dictionary.
+
+        This method groups all elements by their set representative.
+
+        Returns:
+            A dictionary where keys are the root of each set and values are
+            lists of the elements in that set.
+        """
         groups = defaultdict(list)
         for elem in self.parent:
             groups[self.find(elem)].append(elem)
@@ -48,9 +91,26 @@ class UnionFind:
 
 
 class SpatialClusterIndex:
-    """Efficient spatial indexing for clusters using R-tree and interval trees."""
+    """Provides an efficient spatial index for querying and managing clusters.
+
+    This class uses a combination of an R-tree for 2D spatial queries and
+    interval trees for 1D queries along the x and y axes. This hybrid approach
+    allows for fast retrieval of candidate clusters that may overlap with a
+    given bounding box.
+
+    Attributes:
+        spatial_index: An R-tree for indexing the bounding boxes of clusters.
+        x_intervals: An interval tree for the x-coordinates of the clusters.
+        y_intervals: An interval tree for the y-coordinates of the clusters.
+        clusters_by_id: A dictionary mapping cluster IDs to `Cluster` objects.
+    """
 
     def __init__(self, clusters: List[Cluster]):
+        """Initializes the spatial index with a list of clusters.
+
+        Args:
+            clusters: A list of `Cluster` objects to be indexed.
+        """
         p = index.Property()
         p.dimension = 2
         self.spatial_index = index.Index(properties=p)
@@ -62,6 +122,11 @@ class SpatialClusterIndex:
             self.add_cluster(cluster)
 
     def add_cluster(self, cluster: Cluster):
+        """Adds a cluster to the spatial index.
+
+        Args:
+            cluster: The `Cluster` object to add.
+        """
         bbox = cluster.bbox
         self.spatial_index.insert(cluster.id, bbox.as_tuple())
         self.x_intervals.insert(bbox.l, bbox.r, cluster.id)
@@ -69,11 +134,27 @@ class SpatialClusterIndex:
         self.clusters_by_id[cluster.id] = cluster
 
     def remove_cluster(self, cluster: Cluster):
+        """Removes a cluster from the spatial index.
+
+        Args:
+            cluster: The `Cluster` object to remove.
+        """
         self.spatial_index.delete(cluster.id, cluster.bbox.as_tuple())
         del self.clusters_by_id[cluster.id]
 
     def find_candidates(self, bbox: BoundingBox) -> Set[int]:
-        """Find potential overlapping cluster IDs using all indexes."""
+        """Finds potential overlapping cluster IDs using all available indexes.
+
+        This method combines the results from the R-tree and interval trees to
+        efficiently find all clusters that could possibly overlap with the given
+        bounding box.
+
+        Args:
+            bbox: The `BoundingBox` to query against.
+
+        Returns:
+            A set of integer IDs of the candidate clusters.
+        """
         spatial = set(self.spatial_index.intersection(bbox.as_tuple()))
         x_candidates = self.x_intervals.find_containing(
             bbox.l
@@ -90,7 +171,22 @@ class SpatialClusterIndex:
         overlap_threshold: float,
         containment_threshold: float,
     ) -> bool:
-        """Check if two bboxes overlap sufficiently."""
+        """Checks if two bounding boxes have a significant overlap.
+
+        This method determines if two bounding boxes overlap based on Intersection
+        over Union (IoU) and containment thresholds.
+
+        Args:
+            bbox1: The first `BoundingBox`.
+            bbox2: The second `BoundingBox`.
+            overlap_threshold: The minimum IoU for the boxes to be considered
+                overlapping.
+            containment_threshold: The minimum containment ratio for one box to
+                be considered contained within the other.
+
+        Returns:
+            `True` if the boxes have sufficient overlap, `False` otherwise.
+        """
         if bbox1.area() <= 0 or bbox2.area() <= 0:
             return False
 
@@ -106,9 +202,26 @@ class SpatialClusterIndex:
 
 
 class Interval:
-    """Helper class for sortable intervals."""
+    """A helper class representing a 1D interval with an associated ID.
+
+    This class is used by the `IntervalTree` to store intervals. It implements
+    the less-than operator (`__lt__`) to allow for sorting based on the
+    minimum value of the interval.
+
+    Attributes:
+        min_val: The minimum value of the interval.
+        max_val: The maximum value of the interval.
+        id: The identifier associated with this interval.
+    """
 
     def __init__(self, min_val: float, max_val: float, id: int):
+        """Initializes an Interval object.
+
+        Args:
+            min_val: The minimum value of the interval.
+            max_val: The maximum value of the interval.
+            id: The identifier for this interval.
+        """
         self.min_val = min_val
         self.max_val = max_val
         self.id = id
@@ -120,17 +233,40 @@ class Interval:
 
 
 class IntervalTree:
-    """Memory-efficient interval tree for 1D overlap queries."""
+    """A memory-efficient data structure for 1D interval queries.
+
+    This class implements a simple interval tree that allows for efficient
+    insertion of intervals and querying for all intervals that contain a given
+    point. It maintains a sorted list of intervals.
+
+    Attributes:
+        intervals: A list of `Interval` objects, sorted by their minimum value.
+    """
 
     def __init__(self):
+        """Initializes an empty IntervalTree."""
         self.intervals: List[Interval] = []  # Sorted by min_val
 
     def insert(self, min_val: float, max_val: float, id: int):
+        """Inserts a new interval into the tree.
+
+        Args:
+            min_val: The minimum value of the interval.
+            max_val: The maximum value of the interval.
+            id: The identifier for the interval.
+        """
         interval = Interval(min_val, max_val, id)
         bisect.insort(self.intervals, interval)
 
     def find_containing(self, point: float) -> Set[int]:
-        """Find all intervals containing the point."""
+        """Finds all intervals in the tree that contain a given point.
+
+        Args:
+            point: The point to query for.
+
+        Returns:
+            A set of integer IDs of all intervals that contain the point.
+        """
         pos = bisect.bisect_left(self.intervals, point)
         result = set()
 
@@ -153,7 +289,27 @@ class IntervalTree:
 
 
 class LayoutPostprocessor:
-    """Postprocesses layout predictions by cleaning up clusters and mapping cells."""
+    """Post-processes layout predictions to refine and clean up the results.
+
+    This class takes the raw output of a layout analysis model (a list of clusters)
+    and applies a series of refinement steps, including:
+    - Filtering clusters by confidence score.
+    - Assigning text cells to clusters.
+    - Resolving overlapping clusters.
+    - Handling orphaned cells.
+    - Grouping clusters into hierarchical structures (e.g., tables, forms).
+
+    Attributes:
+        OVERLAP_PARAMS: A dictionary of parameters for overlap resolution, specific
+            to different cluster types.
+        WRAPPER_TYPES: A set of `DocItemLabel`s that represent container-like
+            elements.
+        SPECIAL_TYPES: A set of `DocItemLabel`s for clusters that require special
+            handling (wrappers and pictures).
+        CONFIDENCE_THRESHOLDS: A dictionary mapping `DocItemLabel`s to their
+            minimum confidence thresholds.
+        LABEL_REMAPPING: A dictionary for remapping certain labels to others.
+    """
 
     # Cluster type-specific parameters for overlap resolution
     OVERLAP_PARAMS = {
@@ -198,8 +354,13 @@ class LayoutPostprocessor:
     def __init__(
         self, page: Page, clusters: List[Cluster], options: LayoutOptions
     ) -> None:
-        """Initialize processor with page and clusters."""
+        """Initializes the LayoutPostprocessor.
 
+        Args:
+            page: The `Page` object being processed.
+            clusters: The list of `Cluster` objects from the layout model.
+            options: The `LayoutOptions` for configuring the post-processing.
+        """
         self.cells = page.cells
         self.page = page
         self.page_size = page.size
@@ -220,7 +381,18 @@ class LayoutPostprocessor:
         )
 
     def postprocess(self) -> Tuple[List[Cluster], List[TextCell]]:
-        """Main processing pipeline."""
+        """Runs the main post-processing pipeline.
+
+        This method orchestrates the various refinement steps, processing regular
+        and special clusters, and returns the final, cleaned-up list of clusters
+        and text cells.
+
+        Returns:
+            A tuple containing:
+            - A list of the final, processed `Cluster` objects.
+            - A list of the final `TextCell` objects, potentially with updated
+              assignments.
+        """
         self.regular_clusters = self._process_regular_clusters()
         self.special_clusters = self._process_special_clusters()
 

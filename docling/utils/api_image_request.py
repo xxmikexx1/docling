@@ -20,6 +20,27 @@ def api_image_request(
     headers: Optional[Dict[str, str]] = None,
     **params,
 ) -> str:
+    """Sends an image and a prompt to an OpenAI-compatible API and returns the response.
+
+    This function takes a PIL Image, encodes it in base64, and sends it along
+    with a text prompt to a specified API endpoint. It is designed to work with
+    APIs that follow the OpenAI chat completions format for multimodal inputs.
+
+    Args:
+        image: The `PIL.Image.Image` object to be sent.
+        prompt: The text prompt to accompany the image.
+        url: The URL of the API endpoint.
+        timeout: The request timeout in seconds.
+        headers: Optional dictionary of HTTP headers for the request.
+        **params: Additional keyword arguments to be included in the API request
+            payload (e.g., `model`, `temperature`).
+
+    Returns:
+        The generated text content from the API's response.
+
+    Raises:
+        requests.exceptions.RequestException: If the API request fails.
+    """
     img_io = BytesIO()
     image.save(img_io, "PNG")
     image_base64 = base64.b64encode(img_io.getvalue()).decode("utf-8")

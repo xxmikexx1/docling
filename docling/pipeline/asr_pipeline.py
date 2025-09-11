@@ -47,6 +47,14 @@ _log = logging.getLogger(__name__)
 
 
 class _ConversationWord(BaseModel):
+    """Represents a single word in a conversation transcript.
+
+    Attributes:
+        text: The text of the word.
+        start_time: The start time of the word in seconds from the beginning of the audio.
+        end_time: The end time of the word in seconds from the beginning of the audio.
+    """
+
     text: str
     start_time: Optional[float] = Field(
         None, description="Start time in seconds from video start"
@@ -57,6 +65,17 @@ class _ConversationWord(BaseModel):
 
 
 class _ConversationItem(BaseModel):
+    """Represents a segment of a conversation, typically a sentence or a phrase.
+
+    Attributes:
+        text: The transcribed text of the conversation segment.
+        start_time: The start time of the segment in seconds.
+        end_time: The end time of the segment in seconds.
+        speaker_id: A numeric identifier for the speaker.
+        speaker: The name of the speaker.
+        words: A list of individual words with timestamps within this segment.
+    """
+
     text: str
     start_time: Optional[float] = Field(
         None, description="Start time in seconds from video start"
@@ -73,17 +92,23 @@ class _ConversationItem(BaseModel):
     )
 
     def __lt__(self, other):
+        """Compares two _ConversationItem objects based on their start time."""
         if not isinstance(other, _ConversationItem):
             return NotImplemented
         return self.start_time < other.start_time
 
     def __eq__(self, other):
+        """Checks if two _ConversationItem objects are equal based on their start time."""
         if not isinstance(other, _ConversationItem):
             return NotImplemented
         return self.start_time == other.start_time
 
     def to_string(self) -> str:
-        """Format the conversation entry as a string"""
+        """Formats the conversation entry as a string.
+
+        Returns:
+            A string representation of the conversation item, including time and speaker information if available.
+        """
         result = ""
         if (self.start_time is not None) and (self.end_time is not None):
             result += f"[time: {self.start_time}-{self.end_time}] "
@@ -96,6 +121,24 @@ class _ConversationItem(BaseModel):
 
 
 class _NativeWhisperModel:
+    """A wrapper for the OpenAI Whisper model for audio transcription.
+
+    This class handles the initialization of the Whisper model and provides
+    methods to run the transcription process on an audio file.
+
+    Attributes:
+        enabled: A boolean indicating whether the model is enabled.
+        asr_options: Configuration options for the ASR model.
+        max_tokens: The maximum number of tokens to generate.
+        temperature: The sampling temperature for the model.
+        device: The device (CPU or GPU) to run the model on.
+        model_name: The name of the Whisper model to use.
+        model: The loaded Whisper model instance.
+        verbose: A boolean indicating whether to print verbose output.
+        timestamps: A boolean indicating whether to generate timestamps.
+        word_timestamps: A boolean indicating whether to generate word-level timestamps.
+    """
+
     def __init__(
         self,
         enabled: bool,
@@ -103,8 +146,13 @@ class _NativeWhisperModel:
         accelerator_options: AcceleratorOptions,
         asr_options: InlineAsrNativeWhisperOptions,
     ):
-        """
-        Transcriber using native Whisper.
+        """Initializes the _NativeWhisperModel.
+
+        Args:
+            enabled: Whether the model should be enabled.
+            artifacts_path: The path to the model artifacts.
+            accelerator_options: Options for hardware acceleration.
+            asr_options: Options for the ASR model.
         """
         self.enabled = enabled
 
@@ -147,6 +195,14 @@ class _NativeWhisperModel:
             self.word_timestamps = asr_options.word_timestamps
 
     def run(self, conv_res: ConversionResult) -> ConversionResult:
+        """Runs the audio transcription process.
+
+        Args:
+            conv_res: The ConversionResult object containing the input audio file.
+
+        Returns:
+            The updated ConversionResult object with the transcription results.
+        """
         audio_path: Path = Path(conv_res.input.file).resolve()
 
         try:
@@ -177,6 +233,14 @@ class _NativeWhisperModel:
         return conv_res
 
     def transcribe(self, fpath: Path) -> list[_ConversationItem]:
+        """Transcribes an audio file using the Whisper model.
+
+        Args:
+            fpath: The path to the audio file.
+
+        Returns:
+            A list of _ConversationItem objects representing the transcribed conversation.
+        """
         result = self.model.transcribe(
             str(fpath), verbose=self.verbose, word_timestamps=self.word_timestamps
         )
@@ -202,7 +266,22 @@ class _NativeWhisperModel:
 
 
 class AsrPipeline(BasePipeline):
+    """A pipeline for performing Automatic Speech Recognition (ASR) on audio files.
+
+    This pipeline uses a configured ASR model (e.g., Whisper) to transcribe
+    the audio and create a DoclingDocument with the transcribed text.
+
+    Attributes:
+        pipeline_options: The configuration options for this pipeline.
+        _model: The ASR model instance.
+    """
+
     def __init__(self, pipeline_options: AsrPipelineOptions):
+        """Initializes the AsrPipeline.
+
+        Args:
+            pipeline_options: The options for configuring the pipeline.
+        """
         super().__init__(pipeline_options)
         self.keep_backend = True
 
@@ -222,14 +301,32 @@ class AsrPipeline(BasePipeline):
             _log.error(f"No model support for {self.pipeline_options.asr_options}")
 
     def _determine_status(self, conv_res: ConversionResult) -> ConversionStatus:
+        """Determines the final status of the conversion.
+
+        Returns:
+            The final status of the conversion.
+        """
         status = ConversionStatus.SUCCESS
         return status
 
     @classmethod
     def get_default_options(cls) -> AsrPipelineOptions:
+        """Returns the default options for this pipeline.
+
+        Returns:
+            The default AsrPipelineOptions.
+        """
         return AsrPipelineOptions()
 
     def _build_document(self, conv_res: ConversionResult) -> ConversionResult:
+        """Builds the document by running the ASR model.
+
+        Args:
+            conv_res: The ConversionResult object.
+
+        Returns:
+            The updated ConversionResult with the transcribed document.
+        """
         _log.info(f"start _build_document in AsrPipeline: {conv_res.input.file}")
         with TimeRecorder(conv_res, "doc_build", scope=ProfilingScope.DOCUMENT):
             self._model.run(conv_res=conv_res)
@@ -238,4 +335,12 @@ class AsrPipeline(BasePipeline):
 
     @classmethod
     def is_backend_supported(cls, backend: AbstractDocumentBackend):
+        """Checks if a given backend is supported by this pipeline.
+
+        Args:
+            backend: The document backend to check.
+
+        Returns:
+            True if the backend is supported, False otherwise.
+        """
         return isinstance(backend, NoOpBackend)

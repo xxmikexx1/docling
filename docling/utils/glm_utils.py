@@ -19,7 +19,18 @@ from docling_core.types.doc.document import ContentLayer
 
 
 def resolve_item(paths, obj):
-    """Find item in document from a reference path"""
+    """Finds an item in a document object from a reference path.
+
+    This function navigates through a nested dictionary/list structure (representing
+    a document) using a list of path segments to locate a specific item.
+
+    Args:
+        paths: A list of strings or integers representing the path to the item.
+        obj: The document object to search within.
+
+    Returns:
+        The item found at the specified path, or `None` if the path is invalid.
+    """
 
     if len(paths) == 0:
         return obj
@@ -53,6 +64,19 @@ def resolve_item(paths, obj):
 
 
 def _flatten_table_grid(grid: List[List[dict]]) -> List[dict]:
+    """Flattens a 2D grid of table cells into a 1D list of unique cells.
+
+    This function takes a nested list representing a table's grid and unnests
+    it into a single list. It also ensures that each unique cell (identified
+    by its spans) appears only once in the output list.
+
+    Args:
+        grid: A list of lists, where each inner list represents a row of table
+            cell dictionaries.
+
+    Returns:
+        A flattened list of unique table cell dictionaries.
+    """
     unique_objects = []
     seen_spans = set()
 
@@ -68,6 +92,21 @@ def _flatten_table_grid(grid: List[List[dict]]) -> List[dict]:
 
 
 def to_docling_document(doc_glm, update_name_label=False) -> DoclingDocument:  # noqa: C901
+    """Converts a document from the legacy GLM format to a `DoclingDocument`.
+
+    This function transforms a document represented in a legacy JSON-based
+    format (referred to as GLM) into the modern `DoclingDocument` object model.
+    It processes page elements, figures, tables, and text, converting them into
+    their corresponding `DocItem` representations.
+
+    Args:
+        doc_glm: A dictionary representing the document in the GLM format.
+        update_name_label: A boolean flag that, if `True`, attempts to update
+            the name label of paragraph elements based on semantic properties.
+
+    Returns:
+        A `DoclingDocument` object representing the converted document.
+    """
     origin = DocumentOrigin(
         mimetype="application/pdf",
         filename=doc_glm["file-info"]["filename"],
@@ -330,6 +369,19 @@ def to_docling_document(doc_glm, update_name_label=False) -> DoclingDocument:  #
 
 
 def _add_child_elements(container_el, doc, obj, pelem):
+    """Adds child elements from a GLM object to a container element in a `DoclingDocument`.
+
+    This helper function processes the "children" of a GLM container-like
+    element (such as a form or key-value region) and adds them as appropriate
+    `DocItem` objects to the specified parent container in the `DoclingDocument`.
+
+    Args:
+        container_el: The parent container element in the `DoclingDocument` to
+            which the children will be added.
+        doc: The `DoclingDocument` being constructed.
+        obj: The GLM object representing the container element.
+        pelem: The page element dictionary from the GLM data.
+    """
     payload = obj.get("payload")
     if payload is not None:
         children = payload.get("children", [])

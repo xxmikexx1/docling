@@ -266,6 +266,21 @@ NU_EXTRACT_2B_TRANSFORMERS = InlineVlmOptions(
 
 
 class VlmModelType(str, Enum):
+    """An enumeration of the supported Vision Language Models (VLMs).
+
+    This enum provides a standardized set of identifiers for the different VLMs
+    that can be used within Docling. This allows users to easily select a
+    specific model for their VLM-based pipelines.
+
+    Attributes:
+        SMOLDOCLING: The SmolDocling model.
+        SMOLDOCLING_VLLM: The SmolDocling model, optimized for vLLM.
+        GRANITE_VISION: The Granite Vision model.
+        GRANITE_VISION_VLLM: The Granite Vision model, optimized for vLLM.
+        GRANITE_VISION_OLLAMA: The Granite Vision model, accessed via Ollama.
+        GOT_OCR_2: The GoT-OCR 2.0 model.
+    """
+
     SMOLDOCLING = "smoldocling"
     SMOLDOCLING_VLLM = "smoldocling_vllm"
     GRANITE_VISION = "granite_vision"

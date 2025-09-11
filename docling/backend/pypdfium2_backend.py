@@ -28,16 +28,18 @@ def get_pdf_page_geometry(
     angle: float = 0.0,
     boundary_type: PdfPageBoundaryType = PdfPageBoundaryType.CROP_BOX,
 ) -> PdfPageGeometry:
-    """
-    Create PdfPageGeometry from a pypdfium2 PdfPage object.
+    """Creates a `PdfPageGeometry` object from a `pypdfium2.PdfPage`.
+
+    This function extracts the various page boxes (media, crop, art, etc.)
+    from a `pypdfium2` page object and populates a `PdfPageGeometry` model.
 
     Args:
-        ppage: pypdfium2 PdfPage object
-        angle: Page rotation angle in degrees (default: 0.0)
-        boundary_type: The boundary type for the page (default: CROP_BOX)
+        ppage: The `pypdfium2.PdfPage` object.
+        angle: The rotation angle of the page in degrees.
+        boundary_type: The type of page boundary to use.
 
     Returns:
-        PdfPageGeometry with all the different bounding boxes properly set
+        A `PdfPageGeometry` object with the page's dimensional information.
     """
     with pypdfium2_lock:
         # Get the main bounding box (intersection of crop_box and media_box)
@@ -99,9 +101,26 @@ _log = logging.getLogger(__name__)
 
 
 class PyPdfiumPageBackend(PdfPageBackend):
+    """A page-level backend that uses `pypdfium2` to process a single PDF page.
+
+    This class handles the extraction of content from a single page of a PDF
+    file using the `pypdfium2` library.
+
+    Attributes:
+        valid: A boolean indicating if the page was loaded successfully.
+        text_page: An optional `pypdfium2.PdfTextPage` object for text extraction.
+    """
+
     def __init__(
         self, pdfium_doc: pdfium.PdfDocument, document_hash: str, page_no: int
     ):
+        """Initializes the PyPdfiumPageBackend.
+
+        Args:
+            pdfium_doc: The parent `pypdfium2.PdfDocument` object.
+            document_hash: The hash of the parent document.
+            page_no: The page number to load (0-indexed).
+        """
         # Note: lock applied by the caller
         self.valid = True  # No better way to tell from pypdfium.
         try:
@@ -115,10 +134,11 @@ class PyPdfiumPageBackend(PdfPageBackend):
         self.text_page: Optional[PdfTextPage] = None
 
     def is_valid(self) -> bool:
+        """Checks if the page was loaded successfully."""
         return self.valid
 
     def _compute_text_cells(self) -> List[TextCell]:
-        """Compute text cells from pypdfium."""
+        """Computes a list of `TextCell` objects from the pypdfium2 text page."""
         with pypdfium2_lock:
             if not self.text_page:
                 self.text_page = self._ppage.get_textpage()
@@ -252,6 +272,7 @@ class PyPdfiumPageBackend(PdfPageBackend):
         return merge_horizontal_cells(cells)
 
     def get_bitmap_rects(self, scale: float = 1) -> Iterable[BoundingBox]:
+        """Yields the bounding boxes of bitmap images on the page."""
         AREA_THRESHOLD = 0  # 32 * 32
         page_size = self.get_size()
         rotation = self._ppage.get_rotation()
@@ -289,6 +310,7 @@ class PyPdfiumPageBackend(PdfPageBackend):
                     yield cropbox
 
     def get_text_in_rect(self, bbox: BoundingBox) -> str:
+        """Extracts text from a given rectangular area of the page."""
         with pypdfium2_lock:
             if not self.text_page:
                 self.text_page = self._ppage.get_textpage()
@@ -302,6 +324,7 @@ class PyPdfiumPageBackend(PdfPageBackend):
         return text_piece
 
     def get_segmented_page(self) -> Optional[SegmentedPdfPage]:
+        """Returns a structured representation of the page's content."""
         if not self.valid:
             return None
 
@@ -322,11 +345,13 @@ class PyPdfiumPageBackend(PdfPageBackend):
         )
 
     def get_text_cells(self) -> Iterable[TextCell]:
+        """Returns an iterable of all text cells on the page."""
         return self._compute_text_cells()
 
     def get_page_image(
         self, scale: float = 1, cropbox: Optional[BoundingBox] = None
     ) -> Image.Image:
+        """Renders an image of the page."""
         page_size = self.get_size()
 
         if not cropbox:
@@ -361,16 +386,34 @@ class PyPdfiumPageBackend(PdfPageBackend):
         return image
 
     def get_size(self) -> Size:
+        """Returns the size of the page in points."""
         with pypdfium2_lock:
             return Size(width=self._ppage.get_width(), height=self._ppage.get_height())
 
     def unload(self):
+        """Releases the page objects to free up memory."""
         self._ppage = None
         self.text_page = None
 
 
 class PyPdfiumDocumentBackend(PdfDocumentBackend):
+    """A document-level backend that uses `pypdfium2` to process a PDF.
+
+    This class orchestrates the processing of a PDF file using the `pypdfium2`
+    library. It loads the document and provides a method to access individual
+    pages, which are handled by the `PyPdfiumPageBackend`.
+    """
+
     def __init__(self, in_doc: "InputDocument", path_or_stream: Union[BytesIO, Path]):
+        """Initializes the PyPdfiumDocumentBackend.
+
+        Args:
+            in_doc: The `InputDocument` object representing the source PDF.
+            path_or_stream: The path or stream of the PDF content.
+
+        Raises:
+            RuntimeError: If `pypdfium2` fails to load the document.
+        """
         super().__init__(in_doc, path_or_stream)
 
         try:
@@ -382,17 +425,28 @@ class PyPdfiumDocumentBackend(PdfDocumentBackend):
             ) from e
 
     def page_count(self) -> int:
+        """Returns the total number of pages in the document."""
         with pypdfium2_lock:
             return len(self._pdoc)
 
     def load_page(self, page_no: int) -> PyPdfiumPageBackend:
+        """Loads a single page and returns a `PyPdfiumPageBackend` for it.
+
+        Args:
+            page_no: The page number to load (0-indexed).
+
+        Returns:
+            A `PyPdfiumPageBackend` instance for the specified page.
+        """
         with pypdfium2_lock:
             return PyPdfiumPageBackend(self._pdoc, self.document_hash, page_no)
 
     def is_valid(self) -> bool:
+        """Checks if the document is valid (i.e., has at least one page)."""
         return self.page_count() > 0
 
     def unload(self):
+        """Closes the `pypdfium2` document."""
         super().unload()
         with pypdfium2_lock:
             self._pdoc.close()

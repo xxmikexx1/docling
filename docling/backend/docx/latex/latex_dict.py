@@ -1,6 +1,18 @@
 """
-Adapted from https://github.com/xiilei/dwml/blob/master/dwml/latex_dict.py
-On 23/01/2025
+This module provides dictionaries for mapping Office MathML (OMML) elements
+and Unicode characters to their corresponding LaTeX representations. It is
+adapted from the `dwml` library.
+
+The dictionaries are organized as follows:
+- `CHARS`: A tuple of special LaTeX characters.
+- `CHR`: Maps Unicode accent characters to LaTeX accent commands.
+- `CHR_BO`: Maps Unicode big operator symbols to LaTeX commands.
+- `T`: Maps various Unicode symbols (Greek letters, relations, etc.) to LaTeX.
+- `FUNC`: Maps function names (e.g., "sin", "cos") to LaTeX function commands.
+- `F`: Maps different fraction styles to LaTeX fraction commands.
+- `RAD`: Defines the LaTeX command for roots.
+- Other constants define templates for various mathematical structures like
+  delimiters, limits, and matrices.
 """
 
 CHARS = ("{", "}", "_", "^", "#", "&", "$", "%", "~")

@@ -22,6 +22,17 @@ _log = logging.getLogger(__name__)
 
 
 class DoclingParseV4PageBackend(PdfPageBackend):
+    """A page-level backend that uses `docling-parse` v4 to process a single PDF page.
+
+    This class handles the extraction of content from a single page of a PDF file,
+    leveraging the v4 `docling-parse` parser. It performs lazy parsing of the
+    page content to improve efficiency.
+
+    Attributes:
+        valid: A boolean indicating whether the page backend was initialized
+            successfully.
+    """
+
     def __init__(
         self,
         *,
@@ -34,6 +45,18 @@ class DoclingParseV4PageBackend(PdfPageBackend):
         keep_lines: bool = False,
         keep_images: bool = True,
     ):
+        """Initializes the DoclingParseV4PageBackend.
+
+        Args:
+            dp_doc: The `DoclingPdfParser` document object.
+            page_obj: The `pypdfium2.PdfPage` object for this page.
+            page_no: The page number (0-indexed).
+            create_words: If `True`, generates word-level text cells.
+            create_textlines: If `True`, generates textline-level cells.
+            keep_chars: If `True`, keeps character-level information.
+            keep_lines: If `True`, keeps geometric line information.
+            keep_images: If `True`, keeps image information.
+        """
         self._ppage = page_obj
         self._dp_doc = dp_doc
         self._page_no = page_no
@@ -74,9 +97,19 @@ class DoclingParseV4PageBackend(PdfPageBackend):
         self._dpage = seg_page
 
     def is_valid(self) -> bool:
+        """Checks if the page backend was initialized successfully."""
         return self.valid
 
     def get_text_in_rect(self, bbox: BoundingBox) -> str:
+        """Extracts text from a given rectangular area of the page.
+
+        Args:
+            bbox: The `BoundingBox` defining the area to extract text from.
+
+        Returns:
+            A string containing the concatenated text of all cells that
+            significantly overlap with the bounding box.
+        """
         self._ensure_parsed()
         assert self._dpage is not None
 
@@ -105,16 +138,33 @@ class DoclingParseV4PageBackend(PdfPageBackend):
         return text_piece
 
     def get_segmented_page(self) -> Optional[SegmentedPdfPage]:
+        """Returns the `SegmentedPdfPage` object for this page.
+
+        This method triggers the actual parsing of the page if it has not been
+        done already.
+
+        Returns:
+            The `SegmentedPdfPage` object, or `None` if parsing fails.
+        """
         self._ensure_parsed()
         return self._dpage
 
     def get_text_cells(self) -> Iterable[TextCell]:
+        """Returns an iterable of all text cells on the page."""
         self._ensure_parsed()
         assert self._dpage is not None
 
         return self._dpage.textline_cells
 
     def get_bitmap_rects(self, scale: float = 1) -> Iterable[BoundingBox]:
+        """Yields the bounding boxes of bitmap images on the page.
+
+        Args:
+            scale: A scaling factor to apply to the bounding box coordinates.
+
+        Yields:
+            A `BoundingBox` for each bitmap image on the page.
+        """
         self._ensure_parsed()
         assert self._dpage is not None
 
@@ -135,6 +185,15 @@ class DoclingParseV4PageBackend(PdfPageBackend):
     def get_page_image(
         self, scale: float = 1, cropbox: Optional[BoundingBox] = None
     ) -> Image.Image:
+        """Renders an image of the page.
+
+        Args:
+            scale: The scaling factor for the rendered image.
+            cropbox: An optional `BoundingBox` to crop the image to.
+
+        Returns:
+            A `PIL.Image.Image` object of the page.
+        """
         page_size = self.get_size()
 
         if not cropbox:
@@ -169,6 +228,7 @@ class DoclingParseV4PageBackend(PdfPageBackend):
         return image
 
     def get_size(self) -> Size:
+        """Returns the size of the page in points."""
         with pypdfium2_lock:
             return Size(width=self._ppage.get_width(), height=self._ppage.get_height())
 
@@ -179,6 +239,7 @@ class DoclingParseV4PageBackend(PdfPageBackend):
         # )
 
     def unload(self):
+        """Unloads the page from memory to conserve resources."""
         if not self._unloaded and self._dp_doc is not None:
             self._dp_doc.unload_pages((self._page_no + 1, self._page_no + 2))
             self._unloaded = True
@@ -189,7 +250,24 @@ class DoclingParseV4PageBackend(PdfPageBackend):
 
 
 class DoclingParseV4DocumentBackend(PdfDocumentBackend):
+    """A document-level backend that uses `docling-parse` v4 to process a PDF.
+
+    This class orchestrates the processing of a PDF file using the v4 parser
+    from the `docling-parse` library. It loads the document and provides a
+    method to access individual pages, which are handled by the
+    `DoclingParseV4PageBackend`.
+    """
+
     def __init__(self, in_doc: "InputDocument", path_or_stream: Union[BytesIO, Path]):
+        """Initializes the DoclingParseV4DocumentBackend.
+
+        Args:
+            in_doc: The `InputDocument` object representing the source PDF.
+            path_or_stream: The path or stream of the PDF content.
+
+        Raises:
+            RuntimeError: If `docling-parse` v4 fails to load the document.
+        """
         super().__init__(in_doc, path_or_stream)
 
         with pypdfium2_lock:
@@ -204,6 +282,7 @@ class DoclingParseV4DocumentBackend(PdfDocumentBackend):
             )
 
     def page_count(self) -> int:
+        """Returns the total number of pages in the document."""
         # return len(self._pdoc)  # To be replaced with docling-parse API
 
         len_1 = len(self._pdoc)
@@ -217,6 +296,16 @@ class DoclingParseV4DocumentBackend(PdfDocumentBackend):
     def load_page(
         self, page_no: int, create_words: bool = True, create_textlines: bool = True
     ) -> DoclingParseV4PageBackend:
+        """Loads a single page and returns a `DoclingParseV4PageBackend` for it.
+
+        Args:
+            page_no: The page number to load (0-indexed).
+            create_words: If `True`, generates word-level text cells.
+            create_textlines: If `True`, generates textline-level cells.
+
+        Returns:
+            A `DoclingParseV4PageBackend` instance for the specified page.
+        """
         with pypdfium2_lock:
             ppage = self._pdoc[page_no]
 
@@ -229,9 +318,11 @@ class DoclingParseV4DocumentBackend(PdfDocumentBackend):
         )
 
     def is_valid(self) -> bool:
+        """Checks if the document is valid (i.e., has at least one page)."""
         return self.page_count() > 0
 
     def unload(self):
+        """Unloads the document from `docling-parse` and closes the `pypdfium2` document."""
         super().unload()
         # Unload docling-parse document first
         if self.dp_doc is not None:

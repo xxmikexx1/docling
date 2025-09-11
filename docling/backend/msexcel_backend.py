@@ -36,10 +36,13 @@ _log = logging.getLogger(__name__)
 
 
 class ExcelCell(BaseModel):
-    """Represents an Excel cell.
+    """Represents a single cell within an Excel worksheet.
+
+    This class stores the essential properties of a cell, including its position,
+    content, and any row or column spans.
 
     Attributes:
-        row: The row number of the cell.
+        row: The row number of the cell (0-indexed).
         col: The column number of the cell.
         text: The text content of the cell.
         row_span: The number of rows the cell spans.
@@ -54,11 +57,14 @@ class ExcelCell(BaseModel):
 
 
 class ExcelTable(BaseModel):
-    """Represents an Excel table on a worksheet.
+    """Represents a contiguous block of cells forming a table in an Excel worksheet.
+
+    This class defines a table by its anchor point (top-left cell), its dimensions,
+    and the data it contains.
 
     Attributes:
-        anchor: The column and row indices of the upper-left cell of the table
-        (0-based index).
+        anchor: A tuple `(column, row)` representing the 0-based indices of the
+            table's top-left cell.
         num_rows: The number of rows in the table.
         num_cols: The number of columns in the table.
         data: The data in the table, represented as a list of ExcelCell objects.
@@ -71,33 +77,31 @@ class ExcelTable(BaseModel):
 
 
 class MsExcelDocumentBackend(DeclarativeDocumentBackend, PaginatedDocumentBackend):
-    """Backend for parsing Excel workbooks.
+    """A backend for parsing Microsoft Excel (`.xlsx`) files.
 
-    The backend converts an Excel workbook into a DoclingDocument object.
-    Each worksheet is converted into a separate page.
-    The following elements are parsed:
-    - Cell contents, parsed as tables. If two groups of cells are disconnected
-    between each other, they will be parsed as two different tables.
-    - Images, parsed as PictureItem objects.
+    This backend converts an Excel workbook into a `DoclingDocument`. Each
+    worksheet is treated as a separate page. It parses cell contents into tables
+    and extracts any embedded images.
 
-    The DoclingDocument tables and pictures have their provenance information, including
-    the position in their original Excel worksheet. The position is represented by a
-    bounding box object with the cell indices as units (0-based index). The size of this
-    bounding box is the number of columns and rows that the table or picture spans.
+    The provenance information for tables and pictures is stored as a bounding
+    box where the units are the 0-based cell indices.
     """
 
     @override
     def __init__(
         self, in_doc: "InputDocument", path_or_stream: Union[BytesIO, Path]
     ) -> None:
-        """Initialize the MsExcelDocumentBackend object.
+        """Initializes the MsExcelDocumentBackend.
 
-        Parameters:
-            in_doc: The input document object.
-            path_or_stream: The path or stream to the Excel file.
+        This loads the Excel workbook from the given path or stream using
+        `openpyxl`.
+
+        Args:
+            in_doc: The `InputDocument` object representing the source Excel file.
+            path_or_stream: The path or stream of the Excel file.
 
         Raises:
-            RuntimeError: An error occurred parsing the file.
+            RuntimeError: If an error occurs while parsing the file.
         """
         super().__init__(in_doc, path_or_stream)
 
@@ -126,16 +130,19 @@ class MsExcelDocumentBackend(DeclarativeDocumentBackend, PaginatedDocumentBacken
 
     @override
     def is_valid(self) -> bool:
+        """Checks if the Excel workbook was loaded successfully."""
         _log.debug(f"valid: {self.valid}")
         return self.valid
 
     @classmethod
     @override
     def supports_pagination(cls) -> bool:
+        """Excel files are treated as paginated, with each sheet being a page."""
         return True
 
     @override
     def page_count(self) -> int:
+        """Returns the number of worksheets in the workbook."""
         if self.is_valid() and self.workbook:
             return len(self.workbook.sheetnames)
         else:
@@ -144,18 +151,21 @@ class MsExcelDocumentBackend(DeclarativeDocumentBackend, PaginatedDocumentBacken
     @classmethod
     @override
     def supported_formats(cls) -> set[InputFormat]:
+        """Returns the set of supported formats, which is just XLSX."""
         return {InputFormat.XLSX}
 
     @override
     def convert(self) -> DoclingDocument:
-        """Parse the Excel workbook into a DoclingDocument object.
+        """Converts the Excel workbook into a `DoclingDocument`.
 
-        Raises:
-            RuntimeError: Unable to run the conversion since the backend object failed to
-            initialize.
+        This method orchestrates the conversion by iterating through each
+        worksheet and parsing its content.
 
         Returns:
-            The DoclingDocument object representing the Excel workbook.
+            A `DoclingDocument` object representing the Excel workbook.
+
+        Raises:
+            RuntimeError: If the backend was not initialized successfully.
         """
         origin = DocumentOrigin(
             filename=self.file.name or "file.xlsx",

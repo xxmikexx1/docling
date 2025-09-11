@@ -102,8 +102,27 @@ _EMPTY_DOCLING_DOC = DoclingDocument(name="dummy")
 
 
 class InputDocument(BaseModel):
+    """Represents an input document to be processed by Docling.
+
+    This class encapsulates the properties of a source document, including its
+    file path, hash, format, and validity. It also handles the initialization
+    of the appropriate backend for processing the document.
+
+    Attributes:
+        file: A `PurePath` object representing the path to the document file.
+        document_hash: A unique hash of the document's content, used for
+            identification and caching.
+        valid: A boolean flag indicating whether the document is valid for
+            processing (e.g., within size and page limits).
+        limits: A `DocumentLimits` object specifying the constraints for
+            processing this document.
+        format: The `InputFormat` of the document.
+        filesize: The size of the document in bytes.
+        page_count: The number of pages in the document (if applicable).
+    """
+
     file: PurePath
-    document_hash: str  # = None
+    document_hash: str
     valid: bool = True
     limits: DocumentLimits = DocumentLimits()
     format: InputFormat  # = None
@@ -121,6 +140,21 @@ class InputDocument(BaseModel):
         filename: Optional[str] = None,
         limits: Optional[DocumentLimits] = None,
     ):
+        """Initializes an InputDocument instance.
+
+        This constructor handles the creation of an `InputDocument` from either a
+        file path or a stream. It performs initial validation, calculates the
+        document hash, and sets up the appropriate backend for processing.
+
+        Args:
+            path_or_stream: The source of the document, which can be a `Path`
+                object for a local file or a `BytesIO` stream.
+            format: The `InputFormat` of the document.
+            backend: The `AbstractDocumentBackend` class to be used for
+                processing this document.
+            filename: The name of the file, required when providing a stream.
+            limits: The `DocumentLimits` to apply for this document.
+        """
         super().__init__(
             file="", document_hash="", format=InputFormat.PDF
         )  # initialize with dummy values
@@ -191,14 +225,50 @@ class InputDocument(BaseModel):
 
 
 class DocumentFormat(str, Enum):
+    """An enumeration for different versions of the Docling document format.
+
+    This enum is used to distinguish between different schemas or versions of
+    the Docling document model, ensuring backward compatibility and proper
+    handling of legacy formats.
+
+    Attributes:
+        V2: The version 2 of the Docling document format.
+        V1: The legacy version 1 of the Docling document format.
+    """
+
     V2 = "v2"
     V1 = "v1"
 
 
 class ConversionResult(BaseModel):
+    """Represents the result of a document conversion process.
+
+    This class encapsulates all the outputs and metadata generated during the
+    conversion of a single input document. It includes the final processed
+    document, status information, errors, timings, and confidence scores.
+
+    Attributes:
+        input: The `InputDocument` that was processed.
+        status: The final `ConversionStatus` of the process (e.g., success,
+            failure).
+        errors: A list of `ErrorItem` objects detailing any errors that
+            occurred during the conversion.
+        pages: A list of `Page` objects, where each object contains the detailed
+            content and predictions for a single page.
+        assembled: An `AssembledUnit` containing the structured content of the
+            entire document.
+        timings: A dictionary of `ProfilingItem` objects that record the time
+            taken for different stages of the process.
+        confidence: A `ConfidenceReport` that provides an overall assessment of
+            the processing quality.
+        document: The final, processed `DoclingDocument` object.
+        legacy_document: A deprecated property that returns the document in the
+            legacy V1 format.
+    """
+
     input: InputDocument
 
-    status: ConversionStatus = ConversionStatus.PENDING  # failure, success
+    status: ConversionStatus = ConversionStatus.PENDING
     errors: List[ErrorItem] = []  # structure to keep errors
 
     pages: List[Page] = []
@@ -215,6 +285,14 @@ class ConversionResult(BaseModel):
 
 
 class _DummyBackend(AbstractDocumentBackend):
+    """A placeholder backend for handling unsupported or invalid document formats.
+
+    This backend is used as a fallback when a document's format is not supported
+    or an error occurs during format detection. It ensures that the processing
+    pipeline can handle such cases gracefully without crashing. It always reports
+    itself as invalid and supports no formats.
+    """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -234,6 +312,21 @@ class _DummyBackend(AbstractDocumentBackend):
 
 
 class _DocumentConversionInput(BaseModel):
+    """Handles the intake and processing of multiple input documents.
+
+    This class is responsible for iterating through a collection of document
+    sources (paths or streams), guessing their formats, and yielding
+    `InputDocument` objects ready for conversion. It acts as a pre-processor
+    for the main conversion pipeline.
+
+    Attributes:
+        path_or_stream_iterator: An iterable of document sources, which can be
+            file paths, URLs, or `DocumentStream` objects.
+        headers: Optional dictionary of HTTP headers to use when fetching
+            documents from URLs.
+        limits: Optional `DocumentLimits` to apply to all documents processed.
+    """
+
     path_or_stream_iterator: Iterable[Union[Path, str, DocumentStream]]
     headers: Optional[Dict[str, str]] = None
     limits: Optional[DocumentLimits] = DocumentLimits()
@@ -242,6 +335,19 @@ class _DocumentConversionInput(BaseModel):
         self,
         format_options: Mapping[InputFormat, "BaseFormatOption"],
     ) -> Iterable[InputDocument]:
+        """Yields `InputDocument` objects from the provided sources.
+
+        This method iterates through the document sources, resolves them into
+        streams if necessary, guesses their format, and yields an `InputDocument`
+        for each one that has a supported format.
+
+        Args:
+            format_options: A mapping from `InputFormat` to `BaseFormatOption`,
+                which defines the supported formats and their associated backends.
+
+        Yields:
+            An `InputDocument` object for each valid and supported document source.
+        """
         for item in self.path_or_stream_iterator:
             obj = (
                 resolve_source_to_stream(item, self.headers)
@@ -278,6 +384,19 @@ class _DocumentConversionInput(BaseModel):
                 raise RuntimeError(f"Unexpected obj type in iterator: {type(obj)}")
 
     def _guess_format(self, obj: Union[Path, DocumentStream]) -> Optional[InputFormat]:
+        """Guesses the `InputFormat` of a document.
+
+        This method attempts to determine the format of a document by first checking
+        its MIME type, then its file extension, and finally its content. It handles
+        various ambiguities, such as those arising from generic XML or ZIP formats.
+
+        Args:
+            obj: The document source, either a `Path` object or a `DocumentStream`.
+
+        Returns:
+            The guessed `InputFormat`, or `None` if the format could not be
+            determined or is not supported.
+        """
         content = b""  # empty binary blob
         formats: list[InputFormat] = []
 

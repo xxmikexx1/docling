@@ -26,6 +26,17 @@ _log = logging.getLogger(__name__)
 
 
 class LayoutModel(BasePageModel):
+    """A model for performing layout analysis on document pages.
+
+    This model uses a layout prediction model to identify and classify different
+    regions on a page, such as text blocks, tables, figures, and formulas. It
+    then uses a `LayoutPostprocessor` to refine these predictions.
+
+    Attributes:
+        options: A `LayoutOptions` object for configuration.
+        layout_predictor: An instance of the underlying layout prediction model.
+    """
+
     TEXT_ELEM_LABELS = [
         DocItemLabel.TEXT,
         DocItemLabel.FOOTNOTE,
@@ -52,6 +63,14 @@ class LayoutModel(BasePageModel):
         accelerator_options: AcceleratorOptions,
         options: LayoutOptions,
     ):
+        """Initializes the LayoutModel.
+
+        Args:
+            artifacts_path: An optional path to the directory containing the
+                model artifacts. If not provided, the model will be downloaded.
+            accelerator_options: The hardware acceleration options.
+            options: The configuration options for the layout model.
+        """
         from docling_ibm_models.layoutmodel.layout_predictor import LayoutPredictor
 
         self.options = options
@@ -93,6 +112,17 @@ class LayoutModel(BasePageModel):
         progress: bool = False,
         layout_model_config: LayoutModelConfig = LayoutOptions().model_spec,  # use default
     ) -> Path:
+        """Downloads the layout model from Hugging Face.
+
+        Args:
+            local_dir: An optional local directory to save the model to.
+            force: If `True`, forces the re-download of the model.
+            progress: If `True`, displays a progress bar.
+            layout_model_config: The configuration for the layout model to download.
+
+        Returns:
+            The path to the local directory where the model is saved.
+        """
         return download_hf_model(
             repo_id=layout_model_config.repo_id,
             revision=layout_model_config.revision,
@@ -104,11 +134,18 @@ class LayoutModel(BasePageModel):
     def draw_clusters_and_cells_side_by_side(
         self, conv_res, page, clusters, mode_prefix: str, show: bool = False
     ):
-        """
-        Draws a page image side by side with clusters filtered into two categories:
-        - Left: Clusters excluding FORM, KEY_VALUE_REGION, and PICTURE.
-        - Right: Clusters including FORM, KEY_VALUE_REGION, and PICTURE.
-        Includes label names and confidence scores for each cluster.
+        """Generates a debug image visualizing the layout analysis results.
+
+        This method creates a side-by-side comparison image showing the page
+        with different sets of clusters drawn on it. This is useful for
+        debugging the layout analysis and post-processing steps.
+
+        Args:
+            conv_res: The `ConversionResult` for the current document.
+            page: The `Page` object that was processed.
+            clusters: The list of `Cluster` objects to visualize.
+            mode_prefix: A prefix for the output filename (e.g., "raw", "postprocessed").
+            show: If `True`, displays the image instead of saving it to a file.
         """
         scale_x = page.image.width / page.size.width
         scale_y = page.image.height / page.size.height
@@ -148,6 +185,15 @@ class LayoutModel(BasePageModel):
     def __call__(
         self, conv_res: ConversionResult, page_batch: Iterable[Page]
     ) -> Iterable[Page]:
+        """Processes a batch of pages, performing layout analysis on each.
+
+        Args:
+            conv_res: The `ConversionResult` for the current document.
+            page_batch: An iterable of `Page` objects to be processed.
+
+        Yields:
+            The processed `Page` objects with layout predictions attached.
+        """
         # Convert to list to allow multiple iterations
         pages = list(page_batch)
 

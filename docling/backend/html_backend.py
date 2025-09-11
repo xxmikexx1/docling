@@ -75,11 +75,35 @@ _FORMAT_TAG_MAP: Final = {
 
 
 class _Context(BaseModel):
+    """A context object for tracking state during HTML parsing.
+
+    This class holds contextual information that needs to be maintained while
+    traversing the HTML tree, such as the properties of nested lists.
+
+    Attributes:
+        list_ordered_flag_by_ref: A dictionary mapping list references to a
+            boolean indicating if the list is ordered.
+        list_start_by_ref: A dictionary mapping list references to their
+            starting number (for ordered lists).
+    """
+
     list_ordered_flag_by_ref: dict[str, bool] = {}
     list_start_by_ref: dict[str, int] = {}
 
 
 class AnnotatedText(BaseModel):
+    """Represents a piece of text with associated annotations.
+
+    This class is used to store a segment of text along with its hyperlink,
+    formatting information, and a flag indicating if it is code.
+
+    Attributes:
+        text: The text content.
+        hyperlink: An optional hyperlink associated with the text.
+        formatting: An optional `Formatting` object describing the text's style.
+        code: A boolean flag indicating if the text is part of a code block.
+    """
+
     text: str
     hyperlink: Union[AnyUrl, Path, None] = None
     formatting: Union[Formatting, None] = None
@@ -87,7 +111,22 @@ class AnnotatedText(BaseModel):
 
 
 class AnnotatedTextList(list):
+    """A list of `AnnotatedText` objects with helper methods.
+
+    This class extends the built-in `list` to provide methods for simplifying
+    and processing a sequence of `AnnotatedText` objects.
+    """
+
     def to_single_text_element(self) -> AnnotatedText:
+        """Merges a list of `AnnotatedText` objects into a single one.
+
+        This method combines the text and annotations from a list of
+        `AnnotatedText` objects into a single `AnnotatedText`. It handles
+        potential clashes in annotations by taking the first one encountered.
+
+        Returns:
+            A single `AnnotatedText` object representing the merged content.
+        """
         current_h = None
         current_text = ""
         current_f = None
@@ -120,6 +159,15 @@ class AnnotatedTextList(list):
         )
 
     def simplify_text_elements(self) -> "AnnotatedTextList":
+        """Simplifies the list by merging consecutive elements with the same annotations.
+
+        This method iterates through the list and combines adjacent `AnnotatedText`
+        objects that have the same hyperlink, formatting, and code flag. This
+        reduces the number of elements and creates more coherent text blocks.
+
+        Returns:
+            A new `AnnotatedTextList` with the simplified elements.
+        """
         simplified = AnnotatedTextList()
         if not self:
             return self
@@ -159,6 +207,16 @@ class AnnotatedTextList(list):
         return simplified
 
     def split_by_newline(self):
+        """Splits the list into sub-lists based on newline characters.
+
+        This method breaks down the `AnnotatedTextList` into a list of
+        `AnnotatedTextList`s, where each sub-list represents a line of text.
+        This is useful for handling block-level elements like paragraphs that
+        may contain line breaks.
+
+        Returns:
+            A list of `AnnotatedTextList`s, where each sub-list is a line.
+        """
         super_list = []
         active_annotated_text_list = AnnotatedTextList()
         for el in self:
@@ -178,6 +236,23 @@ class AnnotatedTextList(list):
 
 
 class HTMLDocumentBackend(DeclarativeDocumentBackend):
+    """A backend for parsing HTML files.
+
+    This class implements the `DeclarativeDocumentBackend` interface to provide
+    a parser for HTML documents. It uses `BeautifulSoup` to parse the HTML and
+    recursively walks the document tree to extract content and structure.
+
+    Attributes:
+        soup: The `BeautifulSoup` object representing the parsed HTML.
+        max_levels: The maximum depth of the document hierarchy.
+        level: The current level in the hierarchy.
+        parents: A dictionary to keep track of the parent `DocItem` at each level.
+        ctx: A `_Context` object for tracking parsing state.
+        hyperlink: The current hyperlink being processed.
+        original_url: The original URL of the HTML document, if applicable.
+        format_tags: A list of active formatting tags.
+    """
+
     @override
     def __init__(
         self,
@@ -185,6 +260,14 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
         path_or_stream: Union[BytesIO, Path],
         original_url: Optional[AnyUrl] = None,
     ):
+        """Initializes the HTMLDocumentBackend.
+
+        Args:
+            in_doc: The `InputDocument` object representing the source HTML.
+            path_or_stream: The path or stream of the HTML content.
+            original_url: An optional URL of the original document, used for
+                resolving relative links.
+        """
         super().__init__(in_doc, path_or_stream)
         self.soup: Optional[Tag] = None
         self.path_or_stream = path_or_stream
@@ -215,15 +298,18 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
 
     @override
     def is_valid(self) -> bool:
+        """Checks if the HTML was parsed successfully."""
         return self.soup is not None
 
     @classmethod
     @override
     def supports_pagination(cls) -> bool:
+        """HTML is not a paginated format."""
         return False
 
     @override
     def unload(self):
+        """Closes the underlying stream if it's a `BytesIO` object."""
         if isinstance(self.path_or_stream, BytesIO):
             self.path_or_stream.close()
         self.path_or_stream = None
@@ -231,10 +317,23 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
     @classmethod
     @override
     def supported_formats(cls) -> set[InputFormat]:
+        """Returns the set of supported formats, which is just HTML."""
         return {InputFormat.HTML}
 
     @override
     def convert(self) -> DoclingDocument:
+        """Converts the parsed HTML into a `DoclingDocument`.
+
+        This method orchestrates the conversion by cleaning the HTML, setting up
+        the initial document structure, and then walking the document tree to
+        extract content.
+
+        Returns:
+            A `DoclingDocument` object representing the HTML content.
+
+        Raises:
+            RuntimeError: If the HTML document is not valid.
+        """
         _log.debug("Starting HTML conversion...")
         if not self.is_valid():
             raise RuntimeError("Invalid HTML document.")
@@ -280,14 +379,16 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
         return doc
 
     def _walk(self, element: Tag, doc: DoclingDocument) -> None:
-        """Parse an XML tag by recursively walking its content.
+        """Recursively walks the HTML tree and processes its content.
 
-        While walking, the method buffers inline text across tags like <b> or <span>,
-        emitting text nodes only at block boundaries.
+        This method is the core of the HTML parser. It traverses the children
+        of a given `BeautifulSoup` tag, buffering inline text and flushing it
+        when block-level elements are encountered. It dispatches the handling
+        of different tags to specialized methods.
 
         Args:
-            element: The XML tag to parse.
-            doc: The Docling document to be updated with the parsed content.
+            element: The `bs4.Tag` to process.
+            doc: The `DoclingDocument` to populate with the parsed content.
         """
         buffer: AnnotatedTextList = AnnotatedTextList()
 
@@ -366,6 +467,7 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
 
     @staticmethod
     def _collect_parent_format_tags(item: PageElement) -> list[str]:
+        """Collects formatting tags from the ancestors of an element."""
         tags = []
         for format_tag in _FORMAT_TAG_MAP:
             this_parent = item.parent
@@ -378,6 +480,7 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
 
     @property
     def _formatting(self):
+        """Computes the current `Formatting` object based on active format tags."""
         kwargs = {}
         for t in self.format_tags:
             kwargs.update(_FORMAT_TAG_MAP[t])
@@ -392,6 +495,17 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
         find_parent_annotation=False,
         keep_newlines=False,
     ) -> AnnotatedTextList:
+        """Recursively extracts text and annotations from an element and its children.
+
+        Args:
+            item: The `PageElement` to process.
+            ignore_list: If `True`, ignores list tags (`<ul>`, `<ol>`).
+            find_parent_annotation: If `True`, looks for annotations in parent elements.
+            keep_newlines: If `True`, preserves newline characters.
+
+        Returns:
+            An `AnnotatedTextList` containing the extracted text and annotations.
+        """
         result: AnnotatedTextList = AnnotatedTextList()
 
         # If find_parent_annotation, make sure that we keep track of
@@ -467,6 +581,14 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
 
     @contextmanager
     def _use_hyperlink(self, tag: Tag):
+        """A context manager for handling hyperlinks.
+
+        This temporarily sets the current hyperlink based on the `href`
+        attribute of a tag, and restores the old hyperlink upon exit.
+
+        Args:
+            tag: The `<a>` tag with the `href` attribute.
+        """
         old_hyperlink: Union[AnyUrl, Path, None] = None
         new_hyperlink: Union[AnyUrl, Path, None] = None
         this_href = tag.get("href")
@@ -491,6 +613,14 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
 
     @contextmanager
     def _use_format(self, tags: list[str]):
+        """A context manager for handling formatting tags.
+
+        This temporarily adds a list of formatting tags to the active formats
+        and removes them upon exit.
+
+        Args:
+            tags: A list of formatting tag names (e.g., ["b", "i"]).
+        """
         if not tags:
             yield None
         else:
@@ -504,15 +634,15 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
     def _use_inline_group(
         self, annotated_text_list: AnnotatedTextList, doc: DoclingDocument
     ):
-        """Create an inline group for annotated texts.
+        """A context manager for creating an inline group for annotated texts.
 
-        Checks if annotated_text_list has more than one item and if so creates an inline
-        group in which the text elements can then be generated. While the context manager
-        is active the inline group is set as the current parent.
+        If the provided list contains more than one element, this creates an
+        inline group and sets it as the current parent for the duration of the
+        context.
 
         Args:
-            annotated_text_list (AnnotatedTextList): Annotated text
-            doc (DoclingDocument): Currently used document
+            annotated_text_list: The list of `AnnotatedText` objects.
+            doc: The `DoclingDocument` being built.
         """
         if len(annotated_text_list) > 1:
             inline_fmt = doc.add_group(
@@ -532,14 +662,14 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
 
     @contextmanager
     def _use_details(self, tag: Tag, doc: DoclingDocument):
-        """Create a group with the content of a details tag.
+        """A context manager for handling `<details>` tags.
 
-        While the context manager is active, the hierarchy level is set one
-        level higher as the cuurent parent.
+        This creates a section group for the content of a `<details>` tag and
+        manages the hierarchy level accordingly.
 
         Args:
-            tag: The details tag.
-            doc: Currently used document.
+            tag: The `<details>` tag.
+            doc: The `DoclingDocument` being built.
         """
         self.parents[self.level + 1] = doc.add_group(
             name=tag.name,
@@ -556,14 +686,14 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
 
     @contextmanager
     def _use_footer(self, tag: Tag, doc: DoclingDocument):
-        """Create a group with a footer.
+        """A context manager for handling `<footer>` tags.
 
-        Create a group with the content of a footer tag. While the context manager
-        is active, the hierarchy level is set one level higher as the cuurent parent.
+        This creates a section group for the content of a `<footer>` tag, sets
+        the content layer to FURNITURE, and manages the hierarchy level.
 
         Args:
-            tag: The footer tag.
-            doc: Currently used document.
+            tag: The `<footer>` tag.
+            doc: The `DoclingDocument` being built.
         """
         current_layer = self.content_layer
         self.content_layer = ContentLayer.FURNITURE
@@ -582,6 +712,17 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
             self.content_layer = current_layer
 
     def _handle_heading(self, tag: Tag, doc: DoclingDocument) -> None:
+        """Handles heading tags (<h1>, <h2>, etc.).
+
+        This method extracts the text from a heading tag, determines its level,
+        and adds a corresponding `TitleItem` or `SectionHeaderItem` to the
+        document. It also manages the document hierarchy by updating the
+        `parents` and `level` attributes.
+
+        Args:
+            tag: The heading tag to process.
+            doc: The `DoclingDocument` to populate.
+        """
         tag_name = tag.name.lower()
         # set default content layer to BODY as soon as we encounter a heading
         self.content_layer = ContentLayer.BODY
@@ -638,6 +779,16 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
                 self._emit_image(img_tag, doc)
 
     def _handle_list(self, tag: Tag, doc: DoclingDocument) -> None:
+        """Handles list tags (`<ul>`, `<ol>`).
+
+        This method creates a list group and then iterates through the list items
+        (`<li>`), adding them to the document. It handles nested lists by
+        recursively calling `_handle_block`.
+
+        Args:
+            tag: The list tag (`<ul>` or `<ol>`) to process.
+            doc: The `DoclingDocument` to populate.
+        """
         tag_name = tag.name.lower()
         start: Optional[int] = None
         name: str = ""
@@ -767,6 +918,16 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
         self.level -= 1
 
     def _handle_block(self, tag: Tag, doc: DoclingDocument) -> None:
+        """Handles various block-level HTML tags.
+
+        This method acts as a dispatcher, calling the appropriate handler for
+        different block-level tags like `<figure>`, `<h*>` tags, lists,
+        paragraphs, tables, etc.
+
+        Args:
+            tag: The block-level tag to process.
+            doc: The `DoclingDocument` to populate.
+        """
         tag_name = tag.name.lower()
 
         if tag_name == "figure":
@@ -852,6 +1013,15 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
                 self._walk(tag, doc)
 
     def _emit_image(self, img_tag: Tag, doc: DoclingDocument) -> None:
+        """Handles `<img>` tags.
+
+        This method extracts the image source, alt text, and any associated
+        caption, and adds a `PictureItem` to the document.
+
+        Args:
+            img_tag: The `<img>` tag to process.
+            doc: The `DoclingDocument` to populate.
+        """
         figure = img_tag.find_parent("figure")
         caption: AnnotatedTextList = AnnotatedTextList()
 
@@ -902,11 +1072,16 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
 
     @staticmethod
     def get_text(item: PageElement) -> str:
-        """Concatenate all child strings of a PageElement.
+        """Concatenates all child strings of a `PageElement`.
 
-        This method is equivalent to `PageElement.get_text()` but also considers
-        certain tags. When called on a <p> or <li> tags, it returns the text with a
-        trailing space, otherwise the text is concatenated without separators.
+        This method is an alternative to `PageElement.get_text()` that adds
+        a trailing space for `<p>` and `<li>` tags to improve text segmentation.
+
+        Args:
+            item: The `PageElement` from which to extract text.
+
+        Returns:
+            The concatenated text content.
         """
 
         def _extract_text_recursively(item: PageElement) -> list[str]:
@@ -932,17 +1107,17 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
 
     @staticmethod
     def _clean_unicode(text: str) -> str:
-        """Replace typical Unicode characters in HTML for text processing.
+        """Replaces common problematic Unicode characters in HTML.
 
-        Several Unicode characters (e.g., non-printable or formatting) are typically
-        found in HTML but are worth replacing to sanitize text and ensure consistency
-        in text processing tasks.
+        This method sanitizes text by replacing various Unicode characters
+        (e.g., non-breaking spaces, zero-width spaces, special hyphens) with
+        their standard ASCII equivalents to ensure consistency.
 
         Args:
             text: The original text.
 
         Returns:
-            The sanitized text without typical Unicode characters.
+            The sanitized text.
         """
         replacements = {
             "\u00a0": " ",  # non-breaking space
@@ -972,11 +1147,17 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
 
     @staticmethod
     def _get_cell_spans(cell: Tag) -> tuple[int, int]:
-        """Extract colspan and rowspan values from a table cell tag.
+        """Extracts the colspan and rowspan values from a table cell tag.
 
-        This function retrieves the 'colspan' and 'rowspan' attributes from a given
-        table cell tag.
-        If the attribute does not exist or it is not numeric, it defaults to 1.
+        This function retrieves the `colspan` and `rowspan` attributes from a
+        `<td>` or `<th>` tag. If the attributes are missing or not numeric,
+        it defaults to 1.
+
+        Args:
+            cell: The table cell tag.
+
+        Returns:
+            A tuple `(colspan, rowspan)`.
         """
         raw_spans: tuple[str, str] = (
             str(cell.get("colspan", "1")),
@@ -999,6 +1180,19 @@ class HTMLDocumentBackend(DeclarativeDocumentBackend):
 
     @staticmethod
     def parse_table_data(element: Tag) -> Optional[TableData]:  # noqa: C901
+        """Parses an HTML `<table>` element into a `TableData` object.
+
+        This method iterates through the rows and cells of an HTML table,
+        handling `colspan` and `rowspan` attributes to correctly build a grid
+        representation of the table.
+
+        Args:
+            element: The `<table>` tag to parse.
+
+        Returns:
+            A `TableData` object representing the parsed table, or `None` if
+            the table is nested (which is not supported).
+        """
         nested_tables = element.find("table")
         if nested_tables is not None:
             _log.debug("Skipping nested table.")

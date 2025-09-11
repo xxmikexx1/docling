@@ -41,7 +41,30 @@ _log = logging.getLogger(__name__)
 
 
 class BasePipeline(ABC):
+    """An abstract base class for all processing pipelines.
+
+    This class defines the high-level structure and execution flow for a
+    document processing pipeline. It includes methods for building, assembling,
+    and enriching a document, as well as for handling errors and resource cleanup.
+
+    Attributes:
+        pipeline_options: The configuration options for the pipeline.
+        keep_images: A flag indicating whether to keep page images in memory.
+        build_pipe: A list of callable models or functions for the build stage.
+        enrichment_pipe: A list of models for the enrichment stage.
+        artifacts_path: An optional path for storing processing artifacts.
+    """
+
     def __init__(self, pipeline_options: PipelineOptions):
+        """Initializes the BasePipeline.
+
+        Args:
+            pipeline_options: The configuration options for the pipeline.
+
+        Raises:
+            RuntimeError: If `artifacts_path` is defined but is not a valid
+                directory.
+        """
         self.pipeline_options = pipeline_options
         self.keep_images = False
         self.build_pipe: List[Callable] = []
@@ -60,6 +83,20 @@ class BasePipeline(ABC):
             )
 
     def execute(self, in_doc: InputDocument, raises_on_error: bool) -> ConversionResult:
+        """Executes the pipeline for a single input document.
+
+        This method orchestrates the entire processing flow, including the
+        build, assemble, and enrich stages. It also handles exceptions and
+        ensures that resources are cleaned up.
+
+        Args:
+            in_doc: The `InputDocument` to process.
+            raises_on_error: If `True`, exceptions will be raised. Otherwise,
+                they will be caught and recorded in the `ConversionResult`.
+
+        Returns:
+            A `ConversionResult` object containing the results of the processing.
+        """
         conv_res = ConversionResult(input=in_doc)
 
         _log.info(f"Processing document {in_doc.file.name}")
@@ -85,12 +122,24 @@ class BasePipeline(ABC):
 
     @abstractmethod
     def _build_document(self, conv_res: ConversionResult) -> ConversionResult:
+        """The main document building stage of the pipeline.
+
+        This abstract method must be implemented by subclasses to define the
+        core logic for converting the input document into a `DoclingDocument`.
+        """
         pass
 
     def _assemble_document(self, conv_res: ConversionResult) -> ConversionResult:
+        """The document assembly stage of the pipeline."""
         return conv_res
 
     def _enrich_document(self, conv_res: ConversionResult) -> ConversionResult:
+        """The document enrichment stage of the pipeline.
+
+        This method applies a series of enrichment models to the document,
+        adding information such as picture classifications or descriptions.
+        """
+
         def _prepare_elements(
             conv_res: ConversionResult, model: GenericEnrichmentModel[Any]
         ) -> Iterable[NodeItem]:
@@ -116,19 +165,27 @@ class BasePipeline(ABC):
 
     @abstractmethod
     def _determine_status(self, conv_res: ConversionResult) -> ConversionStatus:
+        """Determines the final status of the conversion.
+
+        This abstract method must be implemented by subclasses to set the
+        final `ConversionStatus` based on the results of the processing.
+        """
         pass
 
     def _unload(self, conv_res: ConversionResult):
+        """A hook for unloading resources after processing is complete."""
         pass
 
     @classmethod
     @abstractmethod
     def get_default_options(cls) -> PipelineOptions:
+        """Returns the default options for this pipeline."""
         pass
 
     @classmethod
     @abstractmethod
     def is_backend_supported(cls, backend: AbstractDocumentBackend):
+        """Checks if a given backend is supported by this pipeline."""
         pass
 
 
