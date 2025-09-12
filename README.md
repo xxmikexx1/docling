@@ -120,6 +120,24 @@ Please feel free to connect with us using the [discussion section](https://githu
 
 For more details on Docling's inner workings, check out the [Docling Technical Report](https://arxiv.org/abs/2408.09869).
 
+## Codebase Overview
+
+The `docling` repository is structured into several key directories, each responsible for a specific part of the document processing lifecycle. The source code is located in the `docling/` directory.
+
+*   **`docling/datamodel`**: Defines the core data structures used throughout the application. This includes the central `DoclingDocument` format, as well as configuration options for pipelines and models (e.g., `PipelineOptions`, `VlmModelSpecs`).
+
+*   **`docling/pipeline`**: Contains the main processing pipelines that orchestrate the document conversion process. Pipelines like `StandardPdfPipeline` and `AsrPipeline` define the sequence of steps (e.g., OCR, layout analysis, text extraction) to convert a source file into a `DoclingDocument`.
+
+*   **`docling/backend`**: Holds the different backends responsible for handling various input document formats. Each backend (e.g., `PdfBackend`, `DocxBackend`, `HtmlBackend`) knows how to parse a specific file type and perform an initial conversion.
+
+*   **`docling/models`**: Implements the various models used for document understanding and enrichment. This includes a wide range of models for tasks such as Optical Character Recognition (OCR), layout analysis, table recognition, and Vision Language Model (VLM) processing.
+
+*   **`docling/utils`**: Provides a collection of utility functions that support the core application logic. These utilities cover a range of functionalities, including model downloading, image processing, and data export.
+
+*   **`docling/exceptions.py`**: Defines custom exception classes for tailored error handling within the application.
+
+This structure separates concerns, making the codebase more modular and easier to navigate for contributors. For more detailed information, refer to the docstrings within each module.
+
 ## Contributing
 
 Please read [Contributing to Docling](https://github.com/docling-project/docling/blob/main/CONTRIBUTING.md) for details.
